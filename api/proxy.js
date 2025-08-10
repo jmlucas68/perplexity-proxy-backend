@@ -6,7 +6,7 @@ const app = express();
 
 // --- CONFIGURACIÓN DE SEGURIDAD (CORS) ---
 // Reemplaza '<TU-USUARIO-DE-GITHUB>' con tu nombre de usuario real de GitHub.
-const allowedOrigins = [`https://<TU-USUARIO-DE-GITHUB>.github.io`];
+const allowedOrigins = [`https://jmlucas68.github.io`];
 
 // También puedes añadir 'http://127.0.0.1:5500' a la lista para pruebas locales
 // Ejemplo: const allowedOrigins = [`https://juanma-dev.github.io`, 'http://127.0.0.1:5500'];
@@ -24,13 +24,13 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
+// --- LÓGICA PARA LA API DE GEMINI ---
 
 app.post('/api/proxy', async (req, res) => {
-  const API_KEY = process.env.PERPLEXITY_API_KEY;
+  const API_KEY = process.env.GEMINI_API_KEY; // Variable de entorno para Gemini
 
   if (!API_KEY) {
-    return res.status(500).json({ error: 'La clave de API de Perplexity no está configurada en el servidor.' });
+    return res.status(500).json({ error: 'La clave de API de Gemini no está configurada en el servidor.' });
   }
 
   const { prompt } = req.body;
@@ -39,28 +39,36 @@ app.post('/api/proxy', async (req, res) => {
     return res.status(400).json({ error: 'No se ha proporcionado un \'prompt\'.' });
   }
 
-  try {
-    const response = await axios.post(
-      PERPLEXITY_API_URL,
-      {
-        model: 'sonar-medium-online',
-        messages: [
-          { role: 'system', content: 'Be precise and concise.' },
-          { role: 'user', content: prompt },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
 
-    res.json(response.data);
+  try {
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }],
+    };
+
+    const response = await axios.post(GEMINI_API_URL, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Extraemos el texto de la respuesta de Gemini
+    const geminiText = response.data.candidates[0].content.parts[0].text;
+
+    // Devolvemos una estructura similar a la de OpenAI/Perplexity para no cambiar el frontend
+    res.json({
+      choices: [
+        {
+          message: {
+            content: geminiText,
+          },
+        },
+      ],
+    });
+
   } catch (error) {
-    console.error('Error calling Perplexity API:', error.response ? error.response.data : error.message);
-    res.status(error.response ? error.response.status : 500).json({ error: 'Error contacting Perplexity API.' });
+    console.error('Error calling Gemini API:', error.response ? error.response.data : error.message);
+    res.status(error.response ? error.response.status : 500).json({ error: 'Error contacting Gemini API.' });
   }
 });
 
