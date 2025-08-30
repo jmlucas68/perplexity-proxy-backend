@@ -8,6 +8,7 @@ const app = express();
 // Reemplaza '<TU-USUARIO-DE-GITHUB>' con tu nombre de usuario real de GitHub.
 const allowedOrigins = [
     `https://jmlucas68.github.io`,
+    `https://jmlucas68.github.io/Biblioteca`,
     'http://127.0.0.1:5500',
     'http://localhost:3000'
 ];
