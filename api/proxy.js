@@ -62,17 +62,10 @@ app.post('/api/proxy', async (req, res) => {
     if (!prompt) {
       return res.status(400).json({ error: 'No se ha proporcionado un \'prompt\'.' });
     }
-  } catch (error) {
-    console.error('Error in /api/proxy:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
 
+    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
+    console.log('Calling URL:', GEMINI_API_URL.replace(API_KEY, 'HIDDEN_KEY'));
 
-  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
-  console.log('Calling URL:', GEMINI_API_URL.replace(API_KEY, 'HIDDEN_KEY'));
-
-  try {
     const payload = {
       contents: [
         {
@@ -111,7 +104,7 @@ app.post('/api/proxy', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error calling Gemini API:', error.response ? error.response.data : error.message);
+    console.error('Error in /api/proxy:', error.response ? error.response.data : error.message);
     console.error('Full error object:', error);
     
     // Mejor manejo de errores específicos
@@ -126,8 +119,8 @@ app.post('/api/proxy', async (req, res) => {
         return res.status(400).json({ error: 'Clave API de Gemini no válida. Verifica tu configuración.' });
       }
       
-      return res.status(status).json({ 
-        error: `Error de la API de Gemini (${status}): ${errorData.error ? errorData.error.message : JSON.stringify(errorData)}` 
+      return res.status(status).json({
+        error: `Error de la API de Gemini (${status}): ${errorData.error ? errorData.error.message : JSON.stringify(errorData)}`
       });
     }
     
@@ -138,10 +131,6 @@ app.post('/api/proxy', async (req, res) => {
     
     res.status(500).json({ error: `Error interno: ${error.message}` });
   }
-} catch (error) {
-    console.error('Unhandled error in proxy:', error);
-    res.status(500).json({ error: 'Error interno del servidor.' });
-}
 });
 
 // --- INICIO DEL SERVIDOR LOCAL ---
