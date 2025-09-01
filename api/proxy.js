@@ -32,34 +32,41 @@ app.use(express.json());
 // --- LÓGICA PARA LA API DE GEMINI ---
 
 app.post('/api/proxy', async (req, res) => {
-  const { action, password, prompt } = req.body;
+  try {
+    console.log('Request received:', req.body);
+    console.log('BIBLIOTECA_ADMIN env var:', process.env.BIBLIOTECA_ADMIN ? 'Set' : 'Not Set');
+    console.log('GEMINI_API_KEY env var:', process.env.GEMINI_API_KEY ? 'Set' : 'Not Set');
 
-  if (action === 'validate_password') {
-    const adminPassword = process.env.BIBLIOTECA_ADMIN;
-    if (!adminPassword) {
-      return res.status(500).json({ error: 'La contraseña de administrador no está configurada en el servidor.' });
+    const { action, password, prompt } = req.body;
+
+    if (action === 'validate_password') {
+      const adminPassword = process.env.BIBLIOTECA_ADMIN;
+      if (!adminPassword) {
+        console.error('BIBLIOTECA_ADMIN environment variable is not set.');
+        return res.status(500).json({ error: 'La contraseña de administrador no está configurada en el servidor.' });
+      }
+      if (password === adminPassword) {
+        return res.json({ isValid: true });
+      } else {
+        return res.json({ isValid: false });
+      }
     }
-    if (password === adminPassword) {
-      return res.json({ isValid: true });
-    } else {
-      return res.json({ isValid: false });
+
+    const API_KEY = process.env.GEMINI_API_KEY; // Variable de entorno para Gemini
+
+    if (!API_KEY) {
+      console.error('GEMINI_API_KEY environment variable is not set.');
+      return res.status(500).json({ error: 'La clave de API de Gemini no está configurada en el servidor.' });
     }
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'No se ha proporcionado un \'prompt\'.' });
+    }
+  } catch (error) {
+    console.error('Error in /api/proxy:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
-
-  const API_KEY = process.env.GEMINI_API_KEY; // Variable de entorno para Gemini
-
-  // Debug: Verificar API key
-  console.log('API Key present:', !!API_KEY);
-  console.log('API Key length:', API_KEY ? API_KEY.length : 0);
-  console.log('Request body:', req.body);
-
-  if (!API_KEY) {
-    return res.status(500).json({ error: 'La clave de API de Gemini no está configurada en el servidor.' });
-  }
-
-  if (!prompt) {
-    return res.status(400).json({ error: 'No se ha proporcionado un \'prompt\'.' });
-  }
+});
 
 
   const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
@@ -131,6 +138,10 @@ app.post('/api/proxy', async (req, res) => {
     
     res.status(500).json({ error: `Error interno: ${error.message}` });
   }
+} catch (error) {
+    console.error('Unhandled error in proxy:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+}
 });
 
 // --- INICIO DEL SERVIDOR LOCAL ---
