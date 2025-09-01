@@ -32,6 +32,20 @@ app.use(express.json());
 // --- LÓGICA PARA LA API DE GEMINI ---
 
 app.post('/api/proxy', async (req, res) => {
+  const { action, password, prompt } = req.body;
+
+  if (action === 'validate_password') {
+    const adminPassword = process.env.BIBLIOTECA_ADMIN;
+    if (!adminPassword) {
+      return res.status(500).json({ error: 'La contraseña de administrador no está configurada en el servidor.' });
+    }
+    if (password === adminPassword) {
+      return res.json({ isValid: true });
+    } else {
+      return res.json({ isValid: false });
+    }
+  }
+
   const API_KEY = process.env.GEMINI_API_KEY; // Variable de entorno para Gemini
 
   // Debug: Verificar API key
@@ -43,11 +57,10 @@ app.post('/api/proxy', async (req, res) => {
     return res.status(500).json({ error: 'La clave de API de Gemini no está configurada en el servidor.' });
   }
 
-  const { prompt } = req.body;
-
   if (!prompt) {
     return res.status(400).json({ error: 'No se ha proporcionado un \'prompt\'.' });
   }
+
 
   const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
   console.log('Calling URL:', GEMINI_API_URL.replace(API_KEY, 'HIDDEN_KEY'));
