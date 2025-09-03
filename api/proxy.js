@@ -1,19 +1,20 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const { google } = require('googleapis');
-const multer = require('multer');
-const stream = require('stream');
 
 const app = express();
 
 // --- CONFIGURACIÓN DE SEGURIDAD (CORS) ---
+// Reemplaza '<TU-USUARIO-DE-GITHUB>' con tu nombre de usuario real de GitHub.
 const allowedOrigins = [
     `https://jmlucas68.github.io`,
+    `https://jmlucas68.github.io/Biblioteca`,
     'http://127.0.0.1:5500',
-    'http://localhost:3000',
-    null
+    'http://localhost:3000'
 ];
+
+// También puedes añadir 'http://127.0.0.1:5500' a la lista para pruebas locales
+// Ejemplo: const allowedOrigins = [`https://juanma-dev.github.io`, 'http://127.0.0.1:5500'];
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -28,135 +29,126 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// --- CONFIGURACIÓN DE GOOGLE DRIVE ---
-const DRIVE_FOLDER_ID = '1tHLaiZsReRqCrHT1Izfb6RwQpiYnkK3M'; // ID de la carpeta que me diste
-const driveCredentials = process.env.GOOGLE_DRIVE_CREDENTIALS;
-let drive;
+// --- LÓGICA PARA LA API DE GEMINI ---
 
-if (driveCredentials) {
-    try {
-        const parsedCredentials = JSON.parse(driveCredentials);
-        const auth = new google.auth.GoogleAuth({
-            credentials: parsedCredentials,
-            scopes: ['https://www.googleapis.com/auth/drive']
-        });
-        drive = google.drive({ version: 'v3', auth });
-        console.log('✅ Google Drive client initialized successfully.');
-    } catch (error) {
-        console.error('❌ Error initializing Google Drive client:', error);
-    }
-} else {
-    console.log('⚠️ Google Drive credentials not found. Upload endpoint will not work.');
-}
-
-
-// --- CONFIGURACIÓN DE MULTER (para subida de archivos) ---
-const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: {
-        fileSize: 50 * 1024 * 1024, // Límite de 50 MB por archivo
-    },
-});
-
-// --- RUTA PARA SUBIR ARCHIVOS ---
-app.post('/api/upload', upload.single('ebook'), async (req, res) => {
-    if (!drive) {
-        return res.status(500).json({ error: 'Google Drive client is not initialized on the server.' });
-    }
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded.' });
-    }
-
-    try {
-        const bufferStream = new stream.PassThrough();
-        bufferStream.end(req.file.buffer);
-
-        const { data } = await drive.files.create({
-            media: {
-                mimeType: req.file.mimetype,
-                body: bufferStream,
-            },
-            requestBody: {
-                name: req.file.originalname,
-                parents: [DRIVE_FOLDER_ID],
-            },
-            fields: 'id,name,webViewLink,webContentLink',
-        });
-
-        console.log(`File uploaded successfully: ${data.name} (ID: ${data.id})`);
-        res.status(200).json({ success: true, file: data });
-
-    } catch (error) {
-        console.error('Error uploading to Google Drive:', error);
-        res.status(500).json({ error: 'Failed to upload file to Google Drive.', details: error.message });
-    }
-});
-
-
-// --- LÓGICA PARA LA API DE GEMINI (sin cambios) ---
 app.post('/api/proxy', async (req, res) => {
-  const API_KEY = process.env.GEMINI_API_KEY;
-
-  if (!API_KEY) {
-    return res.status(500).json({ error: 'La clave de API de Gemini no está configurada en el servidor.' });
-  }
-
-  const { action, prompt, password } = req.body;
-
-  // --- VALIDACIÓN DE CONTRASEÑA DE ADMIN ---
-  if (action === 'validate_password') {
-    const ADMIN_PASSWORD = process.env.BIBLIOTECA_ADMIN;
-    if (!ADMIN_PASSWORD) {
-        return res.status(500).json({ error: 'Admin password not configured on server.' });
-    }
-    if (password === ADMIN_PASSWORD) {
-        return res.status(200).json({ success: true });
-    } else {
-        return res.status(401).json({ success: false, error: 'Invalid password.' });
-    }
-  }
-  
-  // --- LLAMADA A GEMINI ---
-  if (!prompt) {
-    return res.status(400).json({ error: 'No se ha proporcionado un \'prompt\'.' });
-  }
-
-  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
-
   try {
+    console.log('Request received:', req.body);
+    console.log('BIBLIOTECA_ADMIN env var:', process.env.BIBLIOTECA_ADMIN ? 'Set' : 'Not Set');
+    console.log('GEMINI_API_KEY env var:', process.env.GEMINI_API_KEY ? 'Set' : 'Not Set');
+
+    const { action, password, prompt } = req.body;
+
+    if (action === 'validate_password') {
+      const adminPassword = process.env.BIBLIOTECA_ADMIN;
+      if (!adminPassword) {
+        console.error('BIBLIOTECA_ADMIN environment variable is not set.');
+        return res.status(500).json({ error: 'La contraseña de administrador no está configurada en el servidor.' });
+      }
+      if (password === adminPassword) {
+        return res.json({ isValid: true });
+      } else {
+        return res.json({ isValid: false });
+      }
+    }
+
+    const API_KEY = process.env.GEMINI_API_KEY; // Variable de entorno para Gemini
+
+    if (!API_KEY) {
+      console.error('GEMINI_API_KEY environment variable is not set.');
+      return res.status(500).json({ error: 'La clave de API de Gemini no está configurada en el servidor.' });
+    }
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'No se ha proporcionado un \'prompt\'.' });
+    }
+
+    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
+    console.log('Calling URL:', GEMINI_API_URL.replace(API_KEY, 'HIDDEN_KEY'));
+
     const payload = {
-      contents: [{ parts: [{ text: prompt }] }]
+      contents: [
+        {
+          parts: [
+            {
+              text: prompt
+            }
+          ]
+        }
+      ]
     };
 
     const response = await axios.post(GEMINI_API_URL, payload, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
 
+    // Verificamos que la respuesta tenga la estructura esperada
     if (!response.data.candidates || !response.data.candidates[0] || !response.data.candidates[0].content) {
       return res.status(500).json({ error: 'Respuesta inesperada de la API de Gemini' });
     }
 
+    // Extraemos el texto de la respuesta de Gemini
     const geminiText = response.data.candidates[0].content.parts[0].text;
 
+    // Devolvemos una estructura similar a la de OpenAI/Perplexity para no cambiar el frontend
     res.json({
-      choices: [{ message: { content: geminiText } }],
+      choices: [
+        {
+          message: {
+            content: geminiText,
+          },
+        },
+      ],
     });
 
   } catch (error) {
-    console.error('Error calling Gemini API:', error.response ? error.response.data : error.message);
-    const status = error.response ? error.response.status : 500;
-    const errorData = error.response ? error.response.data : { error: { message: error.message } };
-    res.status(status).json({ error: `API Error: ${errorData.error.message}` });
+    console.error('Error in /api/proxy:', error.response ? error.response.data : error.message);
+    console.error('Full error object:', error);
+    
+    // Mejor manejo de errores específicos
+    if (error.response) {
+      const status = error.response.status;
+      const errorData = error.response.data;
+      
+      console.error('Error status:', status);
+      console.error('Error data:', errorData);
+      
+      if (status === 400 && errorData.error && errorData.error.message.includes('API key not valid')) {
+        return res.status(400).json({ error: 'Clave API de Gemini no válida. Verifica tu configuración.' });
+      }
+      
+      return res.status(status).json({
+        error: `Error de la API de Gemini (${status}): ${errorData.error ? errorData.error.message : JSON.stringify(errorData)}`
+      });
+    }
+    
+    // Error sin respuesta (conexión, timeout, etc.)
+    if (error.code) {
+      return res.status(500).json({ error: `Error de conexión: ${error.code} - ${error.message}` });
+    }
+    
+    res.status(500).json({ error: `Error interno: ${error.message}` });
   }
 });
 
 // --- INICIO DEL SERVIDOR LOCAL ---
+// Vercel ignora este bloque, pero es necesario para pruebas locales.
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
     console.log(`Servidor proxy escuchando en el puerto ${PORT}`);
-    console.log('Variables de entorno requeridas: GEMINI_API_KEY, ADMIN_PASSWORD, GOOGLE_DRIVE_CREDENTIALS');
+    console.log('Recuerda establecer la variable de entorno GEMINI_API_KEY');
+    
+    // Debug: Verificar si la API key está configurada (solo en desarrollo)
+    if (process.env.GEMINI_API_KEY) {
+      console.log('✅ Variable GEMINI_API_KEY configurada correctamente');
+    } else {
+      console.log('❌ Variable GEMINI_API_KEY NO configurada');
+    }
   });
 }
 
+// Vercel se encarga de levantar el servidor, solo necesitamos exportar la app.
 module.exports = app;
