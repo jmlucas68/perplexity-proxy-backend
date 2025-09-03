@@ -40,7 +40,7 @@ app.post('/api/proxy', async (req, res) => {
     const { action, password, prompt } = req.body;
 
     if (action === 'validate_password') {
-      const adminPassword = process.env.BIBLIOTECA_ADMIN;
+      const ADMIN_PASSWORD = process.env.BIBLIOTECA_ADMIN;
       if (!adminPassword) {
         console.error('BIBLIOTECA_ADMIN environment variable is not set.');
         return res.status(500).json({ error: 'La contraseña de administrador no está configurada en el servidor.' });
