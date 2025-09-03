@@ -39,18 +39,29 @@ app.post('/api/proxy', async (req, res) => {
 
     const { action, password, prompt } = req.body;
 
-    if (action === 'validate_password') {
-      const ADMIN_PASSWORD = process.env.BIBLIOTECA_ADMIN;
-      if (!adminPassword) {
-        console.error('BIBLIOTECA_ADMIN environment variable is not set.');
-        return res.status(500).json({ error: 'La contraseña de administrador no está configurada en el servidor.' });
-      }
-      if (password === adminPassword) {
-        return res.json({ isValid: true });
-      } else {
-        return res.json({ isValid: false });
-      }
+    // --- VALIDACIÓN DE CONTRASEÑA DE ADMIN ---
+  if (action === 'validate_password') {
+    console.log('[Backend Log] Received password validation request.');
+    const ADMIN_PASSWORD = process.env.BIBLIOTECA_ADMIN;
+
+    if (ADMIN_PASSWORD) {
+        console.log(`[Backend Log] BIBLIOTECA_ADMIN variable found. Length: ${ADMIN_PASSWORD.length}`);
+    } else {
+        console.log('[Backend Log] Error: BIBLIOTECA_ADMIN environment variable NOT found.');
     }
+    console.log(`[Backend Log] Password from frontend has length: ${password ? password.length : 0}`);
+
+    if (!ADMIN_PASSWORD) {
+        return res.status(500).json({ error: 'Admin password not configured on server.' });
+    }
+    if (password === ADMIN_PASSWORD) {
+        console.log('[Backend Log] Passwords match. Sending success.');
+        return res.status(200).json({ success: true });
+    } else {
+        console.log('[Backend Log] Passwords do NOT match. Sending failure.');
+        return res.status(401).json({ success: false, error: 'Invalid password.' });
+    }
+  }
 
     const API_KEY = process.env.GEMINI_API_KEY; // Variable de entorno para Gemini
 
