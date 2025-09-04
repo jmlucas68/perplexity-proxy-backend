@@ -27,7 +27,9 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+const upload = require('./upload');
+
+app.use(upload);
 
 // --- LÓGICA PARA LA API DE GEMINI ---
 
