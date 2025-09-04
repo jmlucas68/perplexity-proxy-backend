@@ -2,9 +2,12 @@ const express = require('express');
 const multer = require('multer');
 const { google } = require('googleapis');
 const stream = require('stream');
+const cors = require('cors');
 
 const app = express();
 const upload = multer();
+
+app.use(cors());
 
 app.post('/api/upload', upload.single('ebook'), async (req, res) => {
     if (!req.file) {

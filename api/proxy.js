@@ -6,10 +6,7 @@ const app = express();
 
 // --- CONFIGURACIÓN DE SEGURIDAD (CORS) ---
 // Reemplaza '<TU-USUARIO-DE-GITHUB>' con tu nombre de usuario real de GitHub.
-app.use(cors());
-const upload = require('./upload');
-
-app.use(upload);
+app.use(express.json());
 
 // --- LÓGICA PARA LA API DE GEMINI ---
 
