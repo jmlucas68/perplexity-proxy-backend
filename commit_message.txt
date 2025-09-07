@@ -1,5 +1,5 @@
-fix(api): Corregir política de CORS para permitir peticiones del frontend
+refactor(api): Unificar toda la lógica en un único endpoint index.js
 
-Se actualiza la configuración del middleware `cors` para que sea más
-explícita y robusta. Esto soluciona el error que bloqueaba las
-peticiones `fetch` desde el frontend alojado en GitHub Pages.
+- Se mueve toda la lógica de las rutas, incluyendo la de importación y la del proxy, a un único archivo `api/index.js`.
+- Esto se hace para evitar conflictos de enrutamiento en Vercel y asegurar que la configuración de CORS se aplique globalmente a todas las rutas.
+- Se elimina el archivo `api/import.js` que ahora es redundante.
