@@ -6,23 +6,25 @@ const { upload, handler: importHandler } = require('./import.js'); // Importar d
 const app = express();
 
 // --- CONFIGURACIÓN DE SEGURIDAD (CORS) ---
-// Reemplaza '<TU-USUARIO-DE-GITHUB>' con tu nombre de usuario real de GitHub.
 const allowedOrigins = [
-    `https://jmlucas68.github.io`,
+    'https://jmlucas68.github.io',
     'http://127.0.0.1:5500',
-    'http://localhost:3000',
-    null
+    'http://localhost:3000'
 ];
-const corsOptions = {
-    origin: (origin, callback) => {
-        if (allowedOrigins.includes(origin) || !origin) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // Permite peticiones sin 'origin' (como las de Postman o apps móviles)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'La política de CORS para este sitio no permite acceso desde el origen especificado.';
+            return callback(new Error(msg), false);
         }
-    }
-};
-app.use(cors(corsOptions));
+        return callback(null, true);
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // --- NUEVA RUTA PARA IMPORTAR LIBROS ---

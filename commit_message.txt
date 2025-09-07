@@ -1,5 +1,5 @@
-feat(api): Añadir endpoint para importación de libros
+fix(api): Corregir política de CORS para permitir peticiones del frontend
 
-- Se añade un nuevo endpoint en `/api/import` para gestionar la subida de archivos.
-- Utiliza `multer` para procesar `multipart/form-data`.
-- La lógica de subida a Google Drive y de inserción en Supabase se ha movido desde el proyecto `importer` a este backend para centralizar la lógica de servidor.
+Se actualiza la configuración del middleware `cors` para que sea más
+explícita y robusta. Esto soluciona el error que bloqueaba las
+peticiones `fetch` desde el frontend alojado en GitHub Pages.
