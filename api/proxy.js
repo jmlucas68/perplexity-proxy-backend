@@ -51,10 +51,10 @@ app.post('/api/proxy', async (req, res) => {
     }
     if (password === ADMIN_PASSWORD) {
         console.log('[Backend Log] Passwords match. Sending success.');
-        return res.status(200).json({ success: true });
+        return res.status(200).json({ isValid: true });
     } else {
         console.log('[Backend Log] Passwords do NOT match. Sending failure.');
-        return res.status(401).json({ success: false, error: 'Invalid password.' });
+        return res.status(401).json({ isValid: false, error: 'Invalid password.' });
     }
   }
 
