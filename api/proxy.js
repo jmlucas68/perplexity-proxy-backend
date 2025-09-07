@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const { upload, handler: importHandler } = require('./import.js'); // Importar desde el nuevo archivo
 
 const app = express();
 
@@ -23,6 +24,10 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// --- NUEVA RUTA PARA IMPORTAR LIBROS ---
+app.post('/api/import', upload.single('file'), importHandler);
+
 
 // --- LÓGICA PARA LA API DE GEMINI ---
 

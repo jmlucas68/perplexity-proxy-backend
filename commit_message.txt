@@ -1,6 +1,5 @@
-fix(api): Corregir la respuesta de validación de contraseña
+feat(api): Añadir endpoint para importación de libros
 
-El endpoint de validación de contraseña devolvía `{"success": true}`.
-El frontend esperaba `{"isValid": true}`.
-
-Este commit alinea la respuesta del backend con la expectativa del frontend para permitir un login correcto.
+- Se añade un nuevo endpoint en `/api/import` para gestionar la subida de archivos.
+- Utiliza `multer` para procesar `multipart/form-data`.
+- La lógica de subida a Google Drive y de inserción en Supabase se ha movido desde el proyecto `importer` a este backend para centralizar la lógica de servidor.
