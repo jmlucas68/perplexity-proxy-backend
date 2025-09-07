@@ -129,10 +129,10 @@ const importHandler = async (req, res) => {
 // --- DEFINICIÓN DE RUTAS ---
 
 // Ruta para importar libros (usa multer)
-app.post('/api/import', upload.single('file'), importHandler);
+app.post('/import', upload.single('file'), importHandler);
 
 // Ruta para el proxy de Gemini y validación de contraseña
-app.post('/api/proxy', async (req, res) => {
+app.post('/proxy', async (req, res) => {
   try {
     const { action, password, prompt } = req.body;
 

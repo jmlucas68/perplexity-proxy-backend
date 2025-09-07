@@ -1,5 +1,5 @@
-refactor(api): Unificar toda la lógica en un único endpoint index.js
+fix(api): Corregir enrutamiento de Express bajo entorno Vercel
 
-- Se mueve toda la lógica de las rutas, incluyendo la de importación y la del proxy, a un único archivo `api/index.js`.
-- Esto se hace para evitar conflictos de enrutamiento en Vercel y asegurar que la configuración de CORS se aplique globalmente a todas las rutas.
-- Se elimina el archivo `api/import.js` que ahora es redundante.
+- Se eliminan los prefijos `/api` de las definiciones de rutas de Express.
+- En Vercel, un archivo `api/index.js` ya se sirve bajo la ruta `/api`, por lo que las rutas internas de Express deben ser relativas a ese prefijo.
+- Esto soluciona el error 404 (Not Found) que se estaba produciendo al llamar a los endpoints.
