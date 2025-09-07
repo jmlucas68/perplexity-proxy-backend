@@ -6,6 +6,22 @@ const app = express();
 
 // --- CONFIGURACIÓN DE SEGURIDAD (CORS) ---
 // Reemplaza '<TU-USUARIO-DE-GITHUB>' con tu nombre de usuario real de GitHub.
+const allowedOrigins = [
+    `https://jmlucas68.github.io`,
+    'http://127.0.0.1:5500',
+    'http://localhost:3000',
+    null
+];
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (allowedOrigins.includes(origin) || !origin) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    }
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // --- LÓGICA PARA LA API DE GEMINI ---
