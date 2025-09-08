@@ -5,7 +5,10 @@ const stream = require('stream');
 const cors = require('cors');
 
 const app = express();
-const upload = multer();
+const upload = multer({
+    storage: multer.memoryStorage(), // explícito
+    limits: { files: 1 }             // aseguramos que solo permita 1 archivo
+});
 
 app.use(cors());
 
@@ -48,7 +51,11 @@ app.post('/api/upload', upload.single('ebook'), async (req, res) => {
         res.status(200).json({ success: true, url: data.webViewLink });
     } catch (error) {
         console.error('Error uploading to Google Drive:', error);
-        res.status(500).json({ success: false, error: 'Error uploading to Google Drive.', details: error.message });
+        res.status(500).json({
+            success: false,
+            error: 'Error uploading to Google Drive.',
+            details: error.message,
+        });
     }
 });
 
