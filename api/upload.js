@@ -6,12 +6,31 @@ const cors = require('cors');
 
 const app = express();
 
+// --- CONFIGURACIÓN DE SEGURIDAD (CORS) ---
+// Reemplaza '<TU-USUARIO-DE-GITHUB>' con tu nombre de usuario real de GitHub.
+const allowedOrigins = [
+    `https://jmlucas68.github.io`,
+    'http://127.0.0.1:5500',
+    'http://localhost:3000',
+    null
+];
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (allowedOrigins.includes(origin) || !origin) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    }
+};
+
 // Add detailed logging middleware to see what's being received
 app.use((req, res, next) => {
     console.log('📝 Request details:');
     console.log(' - Method:', req.method);
     console.log(' - Content-Type:', req.headers['content-type']);
     console.log(' - Content-Length:', req.headers['content-length']);
+    cors(corsOptions);
     next();
 });
 
