@@ -30,10 +30,9 @@ app.use((req, res, next) => {
     console.log(' - Method:', req.method);
     console.log(' - Content-Type:', req.headers['content-type']);
     console.log(' - Content-Length:', req.headers['content-length']);
-    cors(corsOptions);
     res.setHeader('Access-Control-Allow-Origin', 'https://jmlucas68.github.io'); // Allow only your origin
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');    cors(corsOptions);
     next();
 });
 
@@ -76,9 +75,7 @@ const drive = google.drive({
 // Use a more flexible approach - accept any field name
 app.post('/api/upload', (req, res) => {
     console.log('📨 Upload request received');
-    res.setHeader('Access-Control-Allow-Origin', 'https://jmlucas68.github.io'); // Allow only your origin
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');    
+    
     const uploadMiddleware = upload.any(); // Accept any field names
     
     uploadMiddleware(req, res, async (err) => {
