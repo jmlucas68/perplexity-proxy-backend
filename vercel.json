@@ -2,7 +2,11 @@
   "rewrites": [
     {
       "source": "/api/upload",
-      "destination": "/api/proxy"
+      "destination": "/api/upload.js"
+    },
+    {
+      "source": "/api/proxy",
+      "destination": "/api/proxy.js"
     }
   ]
 }
