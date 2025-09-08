@@ -6,37 +6,33 @@ const cors = require('cors');
 
 const app = express();
 
-// --- CONFIGURACIÓN DE SEGURIDAD (CORS) ---
-// Reemplaza '<TU-USUARIO-DE-GITHUB>' con tu nombre de usuario real de GitHub.
-const allowedOrigins = [
-    `https://jmlucas68.github.io`,
-    'http://127.0.0.1:5500',
-    'http://localhost:3000',
-    null
-];
-const corsOptions = {
-    origin: (origin, callback) => {
-        if (allowedOrigins.includes(origin) || !origin) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    }
-};
+// CORS configuration - SOLO UNA configuración
+app.use(cors({
+    origin: [
+        'https://jmlucas68.github.io',
+        'http://localhost:3000',
+        'http://127.0.0.1:5500',
+        'http://localhost:5500'
+    ],
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
 
-// Add detailed logging middleware to see what's being received
+// Handle preflight requests explicitly
+app.options('*', cors());
+
+// Logging middleware
 app.use((req, res, next) => {
     console.log('📝 Request details:');
     console.log(' - Method:', req.method);
+    console.log(' - Origin:', req.headers.origin);
     console.log(' - Content-Type:', req.headers['content-type']);
     console.log(' - Content-Length:', req.headers['content-length']);
-    res.setHeader('Access-Control-Allow-Origin', 'https://jmlucas68.github.io'); // Allow only your origin
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');    cors(corsOptions);
     next();
 });
 
-// Configure multer with more specific options
+// Configure multer
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { 
@@ -52,11 +48,7 @@ const upload = multer({
     }
 });
 
-app.use(cors({
-    origin: true,
-    credentials: true
-}));
-
+// Google OAuth configuration
 const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
@@ -72,7 +64,7 @@ const drive = google.drive({
     auth: oauth2Client,
 });
 
-// Use a more flexible approach - accept any field name
+// Upload endpoint
 app.post('/api/upload', (req, res) => {
     console.log('📨 Upload request received');
     
@@ -140,3 +132,19 @@ app.post('/api/upload', (req, res) => {
         }
     });
 });
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Test CORS endpoint
+app.get('/api/test-cors', (req, res) => {
+    res.json({ 
+        message: 'CORS working!', 
+        origin: req.headers.origin,
+        timestamp: new Date().toISOString() 
+    });
+});
+
+module.exports = app;
