@@ -7,7 +7,7 @@ const cors = require('cors');
 const app = express();
 const upload = multer({
     storage: multer.memoryStorage(), // explícito
-    limits: { files: 1 }             // aseguramos que solo permita 1 archivo
+    limits: { files: 1 }             // solo un archivo permitido
 });
 
 app.use(cors());
@@ -29,8 +29,15 @@ const drive = google.drive({
 
 app.post('/api/upload', upload.single('ebook'), async (req, res) => {
     if (!req.file) {
+        console.warn("⚠️ No se recibió ningún archivo");
         return res.status(400).json({ success: false, error: 'No file uploaded.' });
     }
+
+    // 🔹 Logs de depuración
+    console.log("📥 Archivo recibido:");
+    console.log(" - Nombre:", req.file.originalname);
+    console.log(" - Tipo MIME:", req.file.mimetype);
+    console.log(" - Tamaño (bytes):", req.file.size);
 
     const bufferStream = new stream.PassThrough();
     bufferStream.end(req.file.buffer);
@@ -48,9 +55,11 @@ app.post('/api/upload', upload.single('ebook'), async (req, res) => {
             fields: 'id, webViewLink',
         });
 
+        console.log("✅ Subida completada. ID:", data.id, " URL:", data.webViewLink);
+
         res.status(200).json({ success: true, url: data.webViewLink });
     } catch (error) {
-        console.error('Error uploading to Google Drive:', error);
+        console.error('❌ Error subiendo a Google Drive:', error);
         res.status(500).json({
             success: false,
             error: 'Error uploading to Google Drive.',
