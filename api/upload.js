@@ -31,6 +31,9 @@ app.use((req, res, next) => {
     console.log(' - Content-Type:', req.headers['content-type']);
     console.log(' - Content-Length:', req.headers['content-length']);
     cors(corsOptions);
+    res.setHeader('Access-Control-Allow-Origin', 'https://jmlucas68.github.io'); // Allow only your origin
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     next();
 });
 
