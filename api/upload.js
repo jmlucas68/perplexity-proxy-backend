@@ -96,8 +96,12 @@ const drive = google.drive({
     auth: oauth2Client,
 });
 
+// Upload endpoint
+app.post('/api/upload', (req, res) => {
+    console.log('📨 Upload request received');
+    
     // Probar auth antes de procesar archivos
-    const authValid = await testGoogleAuth();
+    const authValid =  testGoogleAuth();
     if (!authValid) {
         return res.status(500).json({
             success: false,
@@ -105,10 +109,6 @@ const drive = google.drive({
             details: 'Check your Google OAuth credentials in environment variables'
         });
     }
-
-// Upload endpoint
-app.post('/api/upload', (req, res) => {
-    console.log('📨 Upload request received');
 
     const uploadMiddleware = upload.any(); // Accept any field names
     
