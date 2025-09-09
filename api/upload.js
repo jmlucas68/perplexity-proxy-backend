@@ -97,11 +97,26 @@ const drive = google.drive({
 });
 
 // Upload endpoint
-app.post('/api/upload', (req, res) => {
+app.post('/api/upload', async (req, res) => {
     console.log('📨 Upload request received');
     
+    // Validación temprana de variables de entorno requeridas
+    const missingEnv = [];
+    if (!process.env.GOOGLE_CLIENT_ID) missingEnv.push('GOOGLE_CLIENT_ID');
+    if (!process.env.GOOGLE_CLIENT_SECRET) missingEnv.push('GOOGLE_CLIENT_SECRET');
+    if (!process.env.GOOGLE_REDIRECT_URI) missingEnv.push('GOOGLE_REDIRECT_URI');
+    if (!process.env.GOOGLE_REFRESH_TOKEN) missingEnv.push('GOOGLE_REFRESH_TOKEN');
+    if (!process.env.GOOGLE_DRIVE_FOLDER_ID) missingEnv.push('GOOGLE_DRIVE_FOLDER_ID');
+    if (missingEnv.length > 0) {
+        return res.status(500).json({
+            success: false,
+            error: 'Missing Google OAuth environment variables',
+            details: `Missing: ${missingEnv.join(', ')}`
+        });
+    }
+    
     // Probar auth antes de procesar archivos
-    const authValid =  testGoogleAuth();
+    const authValid = await testGoogleAuth();
     if (!authValid) {
         return res.status(500).json({
             success: false,
