@@ -116,7 +116,7 @@ app.post('/api/upload', async (req, res) => {
             details: `Missing: ${missingEnv.join(', ')}`
         });
     }
-    
+    /*
     // Probar auth antes de procesar archivos
     const authValid = await testGoogleAuth();
     if (!authValid) {
@@ -125,7 +125,7 @@ app.post('/api/upload', async (req, res) => {
             error: 'Google authentication failed',
             details: 'Check your Google OAuth credentials in environment variables'
         });
-    }
+    }*/
 
     const uploadMiddleware = upload.any(); // Accept any field names
     
