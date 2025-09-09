@@ -55,6 +55,38 @@ const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_REDIRECT_URI
 );
 
+console.log('🔐 OAuth Configuration Check:');
+console.log(' - Client ID exists:', !!process.env.GOOGLE_CLIENT_ID);
+console.log(' - Client Secret exists:', !!process.env.GOOGLE_CLIENT_SECRET);
+console.log(' - Redirect URI exists:', !!process.env.GOOGLE_REDIRECT_URI);
+console.log(' - Refresh Token exists:', !!process.env.GOOGLE_REFRESH_TOKEN);
+console.log(' - Drive Folder ID exists:', !!process.env.GOOGLE_DRIVE_FOLDER_ID);
+
+// Si quieres ver los primeros caracteres (sin exponer las credenciales completas):
+console.log(' - Client ID preview:', process.env.GOOGLE_CLIENT_ID?.substring(0, 10) + '...');
+console.log(' - Refresh Token preview:', process.env.GOOGLE_REFRESH_TOKEN?.substring(0, 10) + '...');
+
+// Función para probar las credenciales antes de subir archivos
+async function testGoogleAuth() {
+    try {
+        console.log('🧪 Testing Google Drive authentication...');
+        
+        // Intentar obtener información sobre el usuario autenticado
+        const auth = await oauth2Client.getAccessToken();
+        console.log('✅ Access token obtained successfully');
+        
+        // Intentar hacer una petición simple a Drive API
+        const driveTest = google.drive({ version: 'v3', auth: oauth2Client });
+        const response = await driveTest.about.get({ fields: 'user' });
+        console.log('✅ Drive API test successful, user:', response.data.user?.displayName);
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Google Auth test failed:', error.message);
+        return false;
+    }
+}
+
 oauth2Client.setCredentials({
     refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
 });
@@ -68,6 +100,16 @@ const drive = google.drive({
 app.post('/api/upload', (req, res) => {
     console.log('📨 Upload request received');
     
+    // Probar auth antes de procesar archivos
+    const authValid =  testGoogleAuth();
+    if (!authValid) {
+        return res.status(500).json({
+            success: false,
+            error: 'Google authentication failed',
+            details: 'Check your Google OAuth credentials in environment variables'
+        });
+    }
+
     const uploadMiddleware = upload.any(); // Accept any field names
     
     uploadMiddleware(req, res, async (err) => {
