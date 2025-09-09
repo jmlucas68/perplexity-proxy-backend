@@ -52,7 +52,9 @@ const upload = multer({
 const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
+    process.env.GOOGLE_REDIRECT_URI,
+    process.env.GOOGLE_REFRESH_TOKEN,
+    process.env.GOOGLE_DRIVE_FOLDER_ID
 );
 
 console.log('🔐 OAuth Configuration Check:');
