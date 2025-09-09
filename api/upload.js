@@ -24,7 +24,7 @@ app.options('*', cors());
 
 // Logging middleware
 app.use((req, res, next) => {
-    console.log('📝 Request details:');
+    console.log('🔍 Request details:');
     console.log(' - Method:', req.method);
     console.log(' - Origin:', req.headers.origin);
     console.log(' - Content-Type:', req.headers['content-type']);
@@ -48,24 +48,50 @@ const upload = multer({
     }
 });
 
+// Helper function to parse Google credentials if they're in JSON format
+function parseGoogleCredentials() {
+    let clientId = process.env.GOOGLE_CLIENT_ID;
+    let clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    
+    // If GOOGLE_CLIENT_SECRET is a JSON string, parse it
+    if (clientSecret && clientSecret.startsWith('{')) {
+        try {
+            const credentialsJson = JSON.parse(clientSecret);
+            if (credentialsJson.web) {
+                clientId = credentialsJson.web.client_id || clientId;
+                clientSecret = credentialsJson.web.client_secret;
+            } else if (credentialsJson.installed) {
+                clientId = credentialsJson.installed.client_id || clientId;
+                clientSecret = credentialsJson.installed.client_secret;
+            }
+        } catch (error) {
+            console.error('❌ Error parsing Google credentials JSON:', error.message);
+        }
+    }
+    
+    return { clientId, clientSecret };
+}
+
+// Parse credentials
+const { clientId, clientSecret } = parseGoogleCredentials();
+
 // Google OAuth configuration
 const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI,
-    process.env.GOOGLE_REFRESH_TOKEN,
-    process.env.GOOGLE_DRIVE_FOLDER_ID
+    clientId,
+    clientSecret,
+    process.env.GOOGLE_REDIRECT_URI
 );
 
-console.log('🔐 OAuth Configuration Check:');
-console.log(' - Client ID exists:', !!process.env.GOOGLE_CLIENT_ID);
-console.log(' - Client Secret exists:', !!process.env.GOOGLE_CLIENT_SECRET);
+console.log('🔍 OAuth Configuration Check:');
+console.log(' - Client ID exists:', !!clientId);
+console.log(' - Client Secret exists:', !!clientSecret);
 console.log(' - Redirect URI exists:', !!process.env.GOOGLE_REDIRECT_URI);
 console.log(' - Refresh Token exists:', !!process.env.GOOGLE_REFRESH_TOKEN);
 console.log(' - Drive Folder ID exists:', !!process.env.GOOGLE_DRIVE_FOLDER_ID);
 
 // Si quieres ver los primeros caracteres (sin exponer las credenciales completas):
-console.log(' - Client ID preview:', process.env.GOOGLE_CLIENT_ID?.substring(0, 10) + '...');
+console.log(' - Client ID preview:', clientId?.substring(0, 10) + '...');
+console.log(' - Client Secret preview:', clientSecret?.substring(0, 10) + '...');
 console.log(' - Refresh Token preview:', process.env.GOOGLE_REFRESH_TOKEN?.substring(0, 10) + '...');
 
 // Función para probar las credenciales antes de subir archivos
@@ -104,8 +130,8 @@ app.post('/api/upload', async (req, res) => {
     
     // Validación temprana de variables de entorno requeridas
     const missingEnv = [];
-    if (!process.env.GOOGLE_CLIENT_ID) missingEnv.push('GOOGLE_CLIENT_ID');
-    if (!process.env.GOOGLE_CLIENT_SECRET) missingEnv.push('GOOGLE_CLIENT_SECRET');
+    if (!clientId) missingEnv.push('GOOGLE_CLIENT_ID');
+    if (!clientSecret) missingEnv.push('GOOGLE_CLIENT_SECRET');
     if (!process.env.GOOGLE_REDIRECT_URI) missingEnv.push('GOOGLE_REDIRECT_URI');
     if (!process.env.GOOGLE_REFRESH_TOKEN) missingEnv.push('GOOGLE_REFRESH_TOKEN');
     if (!process.env.GOOGLE_DRIVE_FOLDER_ID) missingEnv.push('GOOGLE_DRIVE_FOLDER_ID');
@@ -116,8 +142,9 @@ app.post('/api/upload', async (req, res) => {
             details: `Missing: ${missingEnv.join(', ')}`
         });
     }
+    
+    // Probar auth antes de procesar archivos (descomenta si quieres usarlo)
     /*
-    // Probar auth antes de procesar archivos
     const authValid = await testGoogleAuth();
     if (!authValid) {
         return res.status(500).json({
