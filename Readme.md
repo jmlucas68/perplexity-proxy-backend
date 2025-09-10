@@ -1,0 +1,1 @@
+Intento de volver a version Estable CORS para Gemini
