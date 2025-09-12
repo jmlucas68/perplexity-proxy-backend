@@ -124,10 +124,73 @@ const drive = google.drive({
     auth: oauth2Client,
 });
 
+async function diagnoseDriveFolder() {
+    try {
+        console.log('🔍 Diagnosing Drive folder access...');
+        
+        // 1. Verificar autenticación
+        const auth = await oauth2Client.getAccessToken();
+        console.log('✅ Authentication successful');
+        
+        // 2. Obtener información del usuario actual
+        const driveTest = google.drive({ version: 'v3', auth: oauth2Client });
+        const aboutResponse = await driveTest.about.get({ fields: 'user' });
+        console.log('👤 Current user:', aboutResponse.data.user?.displayName);
+        console.log('📧 User email:', aboutResponse.data.user?.emailAddress);
+        
+        // 3. Intentar obtener información de la carpeta específica
+        const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+        console.log('📁 Testing folder ID:', folderId);
+        
+        try {
+            const folderResponse = await driveTest.files.get({
+                fileId: folderId,
+                fields: 'id, name, parents, permissions, capabilities'
+            });
+            
+            console.log('✅ Folder found!');
+            console.log(' - Name:', folderResponse.data.name);
+            console.log(' - ID:', folderResponse.data.id);
+            console.log(' - Can create files:', folderResponse.data.capabilities?.canCreateFiles);
+            console.log(' - Can list children:', folderResponse.data.capabilities?.canListChildren);
+            
+        } catch (folderError) {
+            console.error('❌ Folder access failed:', folderError.message);
+            
+            if (folderError.code === 404) {
+                console.log('💡 Possible solutions:');
+                console.log(' 1. Check if folder ID is correct');
+                console.log(' 2. Verify the user has access to this folder');
+                console.log(' 3. Make sure folder exists and wasn\'t deleted');
+            }
+            
+            // 4. Listar carpetas accesibles como alternativa
+            console.log('\n📂 Listing accessible folders in root:');
+            try {
+                const listResponse = await driveTest.files.list({
+                    q: "mimeType='application/vnd.google-apps.folder'",
+                    fields: 'files(id, name, parents)'
+                });
+                
+                listResponse.data.files?.forEach(folder => {
+                    console.log(` - ${folder.name} (ID: ${folder.id})`);
+                });
+            } catch (listError) {
+                console.error('❌ Could not list folders:', listError.message);
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Diagnosis failed:', error.message);
+    }
+}
+
 // Upload endpoint
 app.post('/api/upload', async (req, res) => {
     console.log('📨 Upload request received');
     
+    diagnoseDriveFolder();
+
     // Validación temprana de variables de entorno requeridas
     const missingEnv = [];
     if (!clientId) missingEnv.push('GOOGLE_CLIENT_ID');
