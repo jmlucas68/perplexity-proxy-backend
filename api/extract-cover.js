@@ -1,11 +1,11 @@
-
 const express = require('express');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
-const { EPub } = require('epub-parser');
+const EPub = require('epub'); // Replaced epub-parser with epub
 const { PDFDocument } = require('pdf-lib');
-const { createCanvas, loadImage } = require('canvas');
-const stream = require('stream');
+const fs = require('fs/promises');
+const os = require('os');
+const path = require('path');
 
 // Initialize Express app
 const app = express();
@@ -19,16 +19,6 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Helper to convert stream to buffer
-function streamToBuffer(stream) {
-    return new Promise((resolve, reject) => {
-        const chunks = [];
-        stream.on('data', (chunk) => chunks.push(chunk));
-        stream.on('end', () => resolve(Buffer.concat(chunks)));
-        stream.on('error', reject);
-    });
-}
-
 app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
     if (!req.file) {
         return res.status(400).send('No file uploaded.');
@@ -41,32 +31,41 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
 
     let imageBuffer;
     let imageMimeType;
+    let tempFilePath;
 
     try {
         // --- Process EPUB ---
         if (req.file.mimetype === 'application/epub+zip') {
-            const epub = new EPub(req.file.buffer);
-            await epub.parse();
+            // The 'epub' library needs a file path, so we write the buffer to a temp file
+            tempFilePath = path.join(os.tmpdir(), `ebook-${Date.now()}.epub`);
+            await fs.writeFile(tempFilePath, req.file.buffer);
 
-            const coverImage = epub.getCoverImage();
-            if (coverImage) {
-                imageBuffer = coverImage.data;
-                imageMimeType = coverImage.mediaType;
-            } else {
-                return res.status(404).send('No cover image found in EPUB metadata.');
-            }
+            const epub = new EPub(tempFilePath);
+
+            // The library is event-based, so we wrap it in a promise
+            await new Promise((resolve, reject) => {
+                epub.on('end', () => {
+                    epub.getCover(async (err, data, mimeType) => {
+                        if (err) {
+                            return reject(err);
+                        }
+                        imageBuffer = data;
+                        imageMimeType = mimeType;
+                        resolve();
+                    });
+                });
+                epub.on('error', reject);
+                epub.parse();
+            });
+
         }
         // --- Process PDF ---
         else if (req.file.mimetype === 'application/pdf') {
             const pdfDoc = await PDFDocument.load(req.file.buffer);
             const firstPage = pdfDoc.getPages()[0];
             
-            // This part is tricky as pdf-lib doesn't render pages.
-            // We will try to find the first large image on the first page as a proxy for the cover.
-            // This is a heuristic and might not always work.
             const imageObjects = await firstPage.getImages();
             if (imageObjects.length > 0) {
-                // Assume the first image is the cover
                 const image = imageObjects[0];
                 const imageBytes = await image.embed();
                 imageBuffer = imageBytes.buffer;
@@ -118,6 +117,15 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
     } catch (error) {
         console.error('Error processing file:', error);
         res.status(500).json({ error: error.message });
+    } finally {
+        // --- Clean up temporary file ---
+        if (tempFilePath) {
+            try {
+                await fs.unlink(tempFilePath);
+            } catch (cleanupError) {
+                console.error('Error cleaning up temporary file:', cleanupError);
+            }
+        }
     }
 });
 
