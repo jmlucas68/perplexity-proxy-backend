@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const EPub = require('epub'); // Replaced epub-parser with epub
@@ -9,6 +10,25 @@ const path = require('path');
 
 // Initialize Express app
 const app = express();
+
+// --- CONFIGURACIÓN DE SEGURIDAD (CORS) ---
+const allowedOrigins = [
+    `https://jmlucas68.github.io`,
+    'http://127.0.0.1:5500',
+    'http://localhost:3000',
+    null
+];
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (allowedOrigins.includes(origin) || !origin) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    }
+};
+app.use(cors(corsOptions));
+app.use(express.json());
 
 // Supabase configuration - Use environment variables in Vercel
 const supabaseUrl = process.env.SUPABASE_URL;

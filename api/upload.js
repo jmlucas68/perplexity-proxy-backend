@@ -7,7 +7,24 @@ const cors = require('cors');
 const app = express();
 const upload = multer();
 
-app.use(cors());
+// --- CONFIGURACIÓN DE SEGURIDAD (CORS) ---
+const allowedOrigins = [
+    `https://jmlucas68.github.io`,
+    'http://127.0.0.1:5500',
+    'http://localhost:3000',
+    null
+];
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (allowedOrigins.includes(origin) || !origin) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    }
+};
+app.use(cors(corsOptions));
+app.use(express.json());
 
 const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
