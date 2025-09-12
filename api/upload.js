@@ -12,7 +12,7 @@ const allowedOrigins = [
     `https://jmlucas68.github.io`,
     'http://127.0.0.1:5500',
     'http://localhost:3000',
-    null
+    'https://jmlucas68.github.io/Biblioteca'
 ];
 const corsOptions = {
     origin: (origin, callback) => {
