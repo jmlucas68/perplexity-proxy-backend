@@ -81,18 +81,39 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
         }
         // --- Process PDF ---
         else if (req.file.mimetype === 'application/pdf') {
-            const pdfDoc = await PDFDocument.load(req.file.buffer);
-            const firstPage = pdfDoc.getPages()[0];
-            
-            const imageObjects = await firstPage.getImages();
-            if (imageObjects.length > 0) {
-                const image = imageObjects[0];
-                const imageBytes = await image.embed();
-                imageBuffer = imageBytes.buffer;
-                imageMimeType = imageBytes.mimeType || 'image/jpeg';
-            } else {
-                 return res.status(404).send('No image found on the first page of the PDF.');
+            const pdfDoc = await PDFDocument.load(req.file.buffer, {
+                ignoreEncryption: true,
+            });
+
+            const imageObjects = [];
+            pdfDoc.context.indirectObjects.forEach((pdfObject) => {
+                if (pdfObject.dict?.get(Symbol.for('Subtype'))?.name === 'Image') {
+                    imageObjects.push(pdfObject);
+                }
+            });
+
+            if (imageObjects.length === 0) {
+                return res.status(404).send('No image found in the PDF.');
             }
+
+            // For simplicity, we'll take the first image found.
+            // A more robust solution might inspect image dimensions.
+            const image = imageObjects[0];
+            const imageBytes = image.contents;
+            
+            const filter = image.dict.get(Symbol.for('Filter'))?.name;
+            let mimeType = 'image/jpeg'; // Default
+            if (filter === 'DCTDecode') {
+                mimeType = 'image/jpeg';
+            } else if (filter === 'JPXDecode') {
+                mimeType = 'image/jp2';
+            } else if (filter === 'FlateDecode') {
+                // FlateDecode can be PNG or other things. We'll assume PNG for now.
+                mimeType = 'image/png';
+            }
+
+            imageBuffer = Buffer.from(imageBytes);
+            imageMimeType = mimeType;
         } else {
             return res.status(415).send('Unsupported file type.');
         }
