@@ -3,7 +3,7 @@ const cors = require('cors');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const EPub = require('epub'); // Replaced epub-parser with epub
-const { PDFDocument } = require('pdf-lib');
+
 const fs = require('fs/promises');
 const os = require('os');
 const path = require('path');
@@ -81,47 +81,43 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
         }
         // --- Process PDF ---
         else if (req.file.mimetype === 'application/pdf') {
-            const pdfDoc = await PDFDocument.load(req.file.buffer, {
-                ignoreEncryption: true,
-            });
+            const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+
+            const loadingTask = pdfjsLib.getDocument({ data: req.file.buffer });
+            const pdfDoc = await loadingTask.promise;
+
+            if (pdfDoc.numPages === 0) {
+                return res.status(404).send('No pages found in the PDF.');
+            }
+
+            const firstPage = await pdfDoc.getPage(1);
+            const operatorList = await firstPage.getOperatorList();
 
             let largestImage = null;
             let maxArea = 0;
 
-            pdfDoc.context.indirectObjects.forEach((pdfObject) => {
-                if (pdfObject.dict?.get(Symbol.for('Subtype'))?.name === 'Image') {
-                    const width = pdfObject.dict.get(Symbol.for('Width'))?.number;
-                    const height = pdfObject.dict.get(Symbol.for('Height'))?.number;
-                    if (width && height) {
-                        const area = width * height;
+            for (let i = 0; i < operatorList.fnArray.length; i++) {
+                const fn = operatorList.fnArray[i];
+                if (fn === pdfjsLib.OPS.paintImageXObject) {
+                    const imgKey = operatorList.argsArray[i][0];
+                    const img = await firstPage.objs.get(imgKey);
+
+                    if (img && img.width && img.height) {
+                        const area = img.width * img.height;
                         if (area > maxArea) {
                             maxArea = area;
-                            largestImage = pdfObject;
+                            largestImage = img;
                         }
                     }
                 }
-            });
+            }
 
             if (!largestImage) {
                 return res.status(404).send('No image found in the PDF.');
             }
 
-            const image = largestImage;
-            const imageBytes = image.contents;
-            
-            const filter = image.dict.get(Symbol.for('Filter'))?.name;
-            let mimeType = 'image/jpeg'; // Default
-            if (filter === 'DCTDecode') {
-                mimeType = 'image/jpeg';
-            } else if (filter === 'JPXDecode') {
-                mimeType = 'image/jp2';
-            } else if (filter === 'FlateDecode') {
-                // FlateDecode can be PNG or other things. We'll assume PNG for now.
-                mimeType = 'image/png';
-            }
-
-            imageBuffer = Buffer.from(imageBytes);
-            imageMimeType = mimeType;
+            imageBuffer = Buffer.from(largestImage.data);
+            imageMimeType = 'image/jpeg'; // pdf.js doesn't always provide a mime type, so we default to jpeg
         } else {
             return res.status(415).send('Unsupported file type.');
         }
