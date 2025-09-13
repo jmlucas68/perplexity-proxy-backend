@@ -7,6 +7,7 @@ const EPub = require('epub'); // Replaced epub-parser with epub
 const fs = require('fs/promises');
 const os = require('os');
 const path = require('path');
+const { createCanvas } = require('canvas');
 
 // Initialize Express app
 const app = express();
@@ -81,7 +82,11 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
         }
         // --- Process PDF ---
         else if (req.file.mimetype === 'application/pdf') {
-            const { default: pdfjsLib } = await import('pdfjs-dist');
+            const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+            const { createCanvas } = require('canvas');
+
+            // Set up PDF.js worker for Node.js
+            pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
 
             const loadingTask = pdfjsLib.getDocument({ data: req.file.buffer });
             const pdfDoc = await loadingTask.promise;
@@ -91,33 +96,22 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
             }
 
             const firstPage = await pdfDoc.getPage(1);
-            const operatorList = await firstPage.getOperatorList();
+            const viewport = firstPage.getViewport({ scale: 1.0 });
 
-            let largestImage = null;
-            let maxArea = 0;
+            // Create a canvas using the 'canvas' npm package
+            const canvas = createCanvas(viewport.width, viewport.height);
+            const context = canvas.getContext('2d');
 
-            for (let i = 0; i < operatorList.fnArray.length; i++) {
-                const fn = operatorList.fnArray[i];
-                if (fn === pdfjsLib.OPS.paintImageXObject) {
-                    const imgKey = operatorList.argsArray[i][0];
-                    const img = await firstPage.objs.get(imgKey);
+            const renderContext = {
+                canvasContext: context,
+                viewport: viewport,
+            };
 
-                    if (img && img.width && img.height) {
-                        const area = img.width * img.height;
-                        if (area > maxArea) {
-                            maxArea = area;
-                            largestImage = img;
-                        }
-                    }
-                }
-            }
+            await firstPage.render(renderContext).promise;
 
-            if (!largestImage) {
-                return res.status(404).send('No image found in the PDF.');
-            }
-
-            imageBuffer = Buffer.from(largestImage.data);
-            imageMimeType = 'image/jpeg'; // pdf.js doesn't always provide a mime type, so we default to jpeg
+            // Convert canvas to image buffer
+            imageBuffer = canvas.toBuffer('image/jpeg', { quality: 0.8 });
+            imageMimeType = 'image/jpeg';
         } else {
             return res.status(415).send('Unsupported file type.');
         }
