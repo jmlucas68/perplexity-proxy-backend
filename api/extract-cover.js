@@ -81,7 +81,7 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
         }
         // --- Process PDF ---
         else if (req.file.mimetype === 'application/pdf') {
-            const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+            const pdfjsLib = require('pdfjs-dist');
 
             const loadingTask = pdfjsLib.getDocument({ data: req.file.buffer });
             const pdfDoc = await loadingTask.promise;
