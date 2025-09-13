@@ -81,10 +81,44 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
         }
         // --- Process PDF ---
         else if (req.file.mimetype === 'application/pdf') {
-            const { default: pdfjsLib } = await import('pdfjs-dist');
-            const { default: PDFWorker } = await import('pdfjs-dist/build/pdf.worker.js');
+            // Polyfills para APIs del navegador en entorno de servidor
+            if (typeof global.DOMMatrix === 'undefined') {
+                global.DOMMatrix = class DOMMatrix {
+                    constructor(init) {
+                        this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
+                        if (init) {
+                            if (typeof init === 'string') {
+                                const values = init.match(/-?[\d.]+/g);
+                                if (values && values.length >= 6) {
+                                    this.a = parseFloat(values[0]); this.b = parseFloat(values[1]);
+                                    this.c = parseFloat(values[2]); this.d = parseFloat(values[3]);
+                                    this.e = parseFloat(values[4]); this.f = parseFloat(values[5]);
+                                }
+                            } else if (Array.isArray(init) && init.length >= 6) {
+                                this.a = init[0]; this.b = init[1]; this.c = init[2];
+                                this.d = init[3]; this.e = init[4]; this.f = init[5];
+                            }
+                        }
+                    }
+                    multiply(other) { return new DOMMatrix(); }
+                    translate(x, y) { return new DOMMatrix(); }
+                    scale(sx, sy) { return new DOMMatrix(); }
+                    rotate(angle) { return new DOMMatrix(); }
+                    transformPoint(point) { return { x: point.x, y: point.y }; }
+                };
+            }
 
-            pdfjsLib.GlobalWorkerOptions.workerSrc = PDFWorker;
+            // Polyfill para URL.createObjectURL si no existe
+            if (typeof global.URL === 'undefined' || !global.URL.createObjectURL) {
+                global.URL = global.URL || {};
+                global.URL.createObjectURL = () => 'blob:mock-url';
+                global.URL.revokeObjectURL = () => {};
+            }
+
+            const { default: pdfjsLib } = await import('pdfjs-dist');
+            
+            // Configurar worker para entorno de servidor usando CDN
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
             const loadingTask = pdfjsLib.getDocument({ data: req.file.buffer });
             const pdfDoc = await loadingTask.promise;
