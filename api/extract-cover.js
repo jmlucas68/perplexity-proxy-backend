@@ -85,20 +85,28 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
                 ignoreEncryption: true,
             });
 
-            const imageObjects = [];
+            let largestImage = null;
+            let maxArea = 0;
+
             pdfDoc.context.indirectObjects.forEach((pdfObject) => {
                 if (pdfObject.dict?.get(Symbol.for('Subtype'))?.name === 'Image') {
-                    imageObjects.push(pdfObject);
+                    const width = pdfObject.dict.get(Symbol.for('Width'))?.number;
+                    const height = pdfObject.dict.get(Symbol.for('Height'))?.number;
+                    if (width && height) {
+                        const area = width * height;
+                        if (area > maxArea) {
+                            maxArea = area;
+                            largestImage = pdfObject;
+                        }
+                    }
                 }
             });
 
-            if (imageObjects.length === 0) {
+            if (!largestImage) {
                 return res.status(404).send('No image found in the PDF.');
             }
 
-            // For simplicity, we'll take the first image found.
-            // A more robust solution might inspect image dimensions.
-            const image = imageObjects[0];
+            const image = largestImage;
             const imageBytes = image.contents;
             
             const filter = image.dict.get(Symbol.for('Filter'))?.name;
