@@ -41,31 +41,63 @@ const drive = google.drive({
     auth: oauth2Client,
 });
 
-app.post('/api/upload', upload.single('ebook'), async (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ success: false, error: 'No file uploaded.' });
+app.post('/api/upload', upload.fields([{ name: 'ebook', maxCount: 1 }, { name: 'coverUrl', maxCount: 1 }]), async (req, res) => {
+    const ebookFile = req.files['ebook'] ? req.files['ebook'][0] : null;
+    const coverUrl = req.body.coverUrl; // Access coverUrl from req.body
+
+    if (!ebookFile) {
+        return res.status(400).json({ success: false, error: 'No ebook file uploaded.' });
     }
 
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(req.file.buffer);
+    const ebookBufferStream = new stream.PassThrough();
+    ebookBufferStream.end(ebookFile.buffer);
 
     try {
-        const { data } = await drive.files.create({
+        // Upload ebook file
+        const ebookUploadRes = await drive.files.create({
             media: {
-                mimeType: req.file.mimetype,
-                body: bufferStream,
+                mimeType: ebookFile.mimetype,
+                body: ebookBufferStream,
             },
             requestBody: {
-                name: req.file.originalname,
+                name: ebookFile.originalname,
                 parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
             },
             fields: 'id, webViewLink',
         });
 
-        res.status(200).json({ success: true, url: data.webViewLink });
+        let coverWebViewLink = null;
+        if (coverUrl) {
+            // Convert data URL to buffer
+            const base64Data = coverUrl.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+            const coverBuffer = Buffer.from(base64Data, 'base64');
+            const coverBufferStream = new stream.PassThrough();
+            coverBufferStream.end(coverBuffer);
+
+            // Upload cover image
+            const coverUploadRes = await drive.files.create({
+                media: {
+                    mimeType: 'image/png', // Assuming PNG from data URL
+                    body: coverBufferStream,
+                },
+                requestBody: {
+                    name: `${ebookFile.originalname}_cover.png`,
+                    parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
+                },
+                fields: 'id, webViewLink',
+            });
+            coverWebViewLink = coverUploadRes.data.webViewLink;
+        }
+
+        res.status(200).json({
+            success: true,
+            ebookUrl: ebookUploadRes.data.webViewLink,
+            coverUrl: coverWebViewLink // Include cover URL in response
+        });
+
     } catch (error) {
-        console.error('Error uploading to Google Drive:', error);
-        res.status(500).json({ success: false, error: 'Error uploading to Google Drive.', details: error.message });
+        console.error('Error during upload process:', error);
+        res.status(500).json({ success: false, error: 'Error during upload process.', details: error.message });
     }
 });
 
