@@ -1,6 +1,0 @@
-fix(api): Corregir la respuesta de validación de contraseña
-
-El endpoint de validación de contraseña devolvía `{"success": true}`.
-El frontend esperaba `{"isValid": true}`.
-
-Este commit alinea la respuesta del backend con la expectativa del frontend para permitir un login correcto.
