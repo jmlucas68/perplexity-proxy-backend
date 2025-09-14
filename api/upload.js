@@ -5,7 +5,6 @@ const stream = require('stream');
 const cors = require('cors');
 
 const app = express();
-// Change to accept a single file with the fieldname 'ebook'
 const upload = multer().single('ebook');
 
 // --- CORS Configuration ---
@@ -56,7 +55,7 @@ app.post('/api/upload', (req, res) => {
         ebookBufferStream.end(ebookFile.buffer);
 
         try {
-            // 1. Upload ebook file to Google Drive
+            // 1. Upload ebook file
             const ebookUploadRes = await drive.files.create({
                 media: {
                     mimeType: ebookFile.mimetype,
@@ -66,7 +65,7 @@ app.post('/api/upload', (req, res) => {
                     name: ebookFile.originalname,
                     parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
                 },
-                fields: 'id', // We only need the ID
+                fields: 'id',
             });
 
             const fileId = ebookUploadRes.data.id;
@@ -74,7 +73,7 @@ app.post('/api/upload', (req, res) => {
                 throw new Error('Google Drive upload did not return a file ID.');
             }
 
-            // 2. Make the file publicly readable
+            // 2. Make file publicly readable
             await drive.permissions.create({
                 fileId: fileId,
                 requestBody: {
@@ -83,13 +82,15 @@ app.post('/api/upload', (req, res) => {
                 },
             });
 
-            // 3. Construct the specific URL format
-            const bookUrl = `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`;
+            // 3. Construct both URLs
+            const viewUrl = `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`;
+            const downloadUrl = `https://drive.google.com/uc?id=${fileId}&export=download`;
 
-            // 4. Return the URL to the frontend
+            // 4. Return both URLs to the frontend
             res.status(200).json({
                 success: true,
-                url: bookUrl, // The frontend expects this field
+                viewUrl: viewUrl,
+                downloadUrl: downloadUrl,
             });
 
         } catch (error) {
