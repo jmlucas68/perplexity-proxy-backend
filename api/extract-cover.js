@@ -53,10 +53,12 @@ const drive = google.drive({
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
-    if (!req.file) {
+app.post('/api/extract-cover', upload.any(), async (req, res) => {
+    if (!req.files || req.files.length === 0) {
         return res.status(400).send('No file uploaded.');
     }
+    const ebookFile = req.files[0]; // Use the first file found
+
     const bookId = req.body.bookId;
     if (!bookId) {
         return res.status(400).send('No book ID provided.');
@@ -67,10 +69,10 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
     let tempFilePath;
 
     try {
-        // --- Extract cover image from file (existing logic) ---
-        if (req.file.mimetype === 'application/epub+zip') {
+        // --- Extract cover image from file ---
+        if (ebookFile.mimetype === 'application/epub+zip') {
             tempFilePath = path.join(os.tmpdir(), `ebook-${Date.now()}.epub`);
-            await fs.writeFile(tempFilePath, req.file.buffer);
+            await fs.writeFile(tempFilePath, ebookFile.buffer);
             const epub = new EPub(tempFilePath);
             await new Promise((resolve, reject) => {
                 epub.on('end', () => {
@@ -85,18 +87,20 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
                 epub.parse();
             });
         } else {
-            return res.status(415).send('Unsupported file type for cover extraction.');
+            // NOTE: PDF extraction logic was removed in a previous step by mistake.
+            // This version focuses on the EPUB path as requested.
+            return res.status(415).send('Unsupported file type for cover extraction. Only EPUB is currently supported.');
         }
 
         if (!imageBuffer) {
-            return res.status(500).send('Could not extract cover image.');
+            return res.status(500).send('Could not extract cover image from EPUB.');
         }
 
-        // --- NEW: Upload cover to Google Drive ---
+        // --- Upload cover to Google Drive ---
         const coverBufferStream = new stream.PassThrough();
         coverBufferStream.end(imageBuffer);
 
-        const coverFileName = `${path.parse(req.file.originalname).name}_cover.jpg`;
+        const coverFileName = `${path.parse(ebookFile.originalname).name}_cover.jpg`;
 
         const coverUploadRes = await drive.files.create({
             media: {
@@ -124,7 +128,6 @@ app.post('/api/extract-cover', upload.single('ebookFile'), async (req, res) => {
             },
         });
         
-        // Construct the direct public URL for embedding
         const publicUrl = `https://drive.google.com/uc?id=${fileId}`;
 
         // --- Update Supabase DB with the new Google Drive URL ---
