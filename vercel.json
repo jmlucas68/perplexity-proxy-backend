@@ -8,5 +8,6 @@
       "source": "/api/proxy",
       "destination": "/api/proxy.js"
     }
-  ]
+  ],
+  "installCommand": "apt-get update && apt-get install -y build-essential pkg-config libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev librsvg2-dev"
 }
