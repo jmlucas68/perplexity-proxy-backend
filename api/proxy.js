@@ -156,5 +156,28 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
+app.post('/api/download', async (req, res) => {
+  try {
+    const { fileId, action } = req.body;
+    if (action !== 'download_file' || !fileId) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+
+    // URL de descarga directa de Google Drive
+    const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+    const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+
+    // Cabeceras CORS + tipo de contenido EPUB
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/epub+zip');
+    res.send(response.data);
+
+  } catch (error) {
+    console.error('Error en /api/download:', error.message);
+    res.status(500).json({ error: 'No se pudo descargar el archivo' });
+  }
+});
+
+
 // Vercel se encarga de levantar el servidor, solo necesitamos exportar la app.
 module.exports = app;
