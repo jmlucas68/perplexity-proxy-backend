@@ -9,7 +9,7 @@ const upload = multer().single('ebook');
 
 // --- CORS Configuration ---
 const allowedOrigins = [
-    `https://jmlucas68.github.io`,
+    'https://jmlucas68.github.io',
     'http://127.0.0.1:5500',
     'http://localhost:3000',
     'https://jmlucas68.github.io/Biblioteca'
