@@ -26,6 +26,9 @@ app.use(express.json());
 
 // --- LÓGICA PARA LA API DE GEMINI ---
 
+// Handle preflight requests for /api/proxy
+app.options('/api/proxy', cors(corsOptions));
+
 app.post('/api/proxy', async (req, res) => {
   try {
     console.log('Request received:', req.body);
@@ -155,6 +158,9 @@ if (process.env.NODE_ENV !== 'production') {
     }
   });
 }
+
+// Handle preflight requests for /api/download
+app.options('/api/download', cors(corsOptions));
 
 app.post('/api/download', async (req, res) => {
   try {
