@@ -42,6 +42,14 @@ const drive = google.drive({
 
 app.post('/api/upload', (req, res) => {
     upload(req, res, async (err) => {
+        if (!oauth2Client.credentials.refresh_token) {
+            return res.status(401).json({
+                success: false,
+                error: 'Authentication required',
+                details: 'No Google Refresh Token available. Please authenticate again.'
+            });
+        }
+
         if (err) {
             return res.status(500).json({ success: false, error: 'File upload error', details: err.message });
         }
