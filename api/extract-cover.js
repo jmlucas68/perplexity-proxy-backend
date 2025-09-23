@@ -42,6 +42,13 @@ const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_REDIRECT_URI
 );
 
+// Log presence of environment variables for debugging
+console.log('GOOGLE_CLIENT_ID is set:', !!process.env.GOOGLE_CLIENT_ID);
+console.log('GOOGLE_CLIENT_SECRET is set:', !!process.env.GOOGLE_CLIENT_SECRET);
+console.log('GOOGLE_REDIRECT_URI is set:', !!process.env.GOOGLE_REDIRECT_URI);
+console.log('GOOGLE_REFRESH_TOKEN is set:', !!process.env.GOOGLE_REFRESH_TOKEN);
+console.log('GOOGLE_DRIVE_FOLDER_ID is set:', !!process.env.GOOGLE_DRIVE_FOLDER_ID);
+
 // Set initial credentials with the refresh token
 oauth2Client.setCredentials({
     refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
@@ -50,20 +57,29 @@ oauth2Client.setCredentials({
 // Listen for 'tokens' event to catch any updates to access or refresh tokens
 oauth2Client.on('tokens', (tokens) => {
     if (tokens.refresh_token) {
-        // This indicates a new refresh token was issued.
-        // In a real application, you would save this to a persistent store (e.g., database).
         console.log('New Google Refresh Token obtained:', tokens.refresh_token);
-        // You might want to update your environment variable or database here.
-        // For a serverless function, this might mean re-deploying with the new token
-        // or storing it in a persistent key-value store.
     }
     console.log('New Google Access Token obtained:', tokens.access_token);
 });
 
-const drive = google.drive({
-    version: 'v3',
-    auth: oauth2Client,
-});
+// Function to ensure access token is refreshed before use
+async function getAuthenticatedDriveClient() {
+    try {
+        // Attempt to refresh the access token. This will use the refresh_token set above.
+        const { credentials } = await oauth2Client.refreshAccessToken();
+        oauth2Client.setCredentials(credentials); // Update credentials with new access token
+        console.log('Google Access Token refreshed successfully.');
+    } catch (refreshError) {
+        console.error('Error refreshing Google Access Token:', refreshError.message);
+        // If refresh fails, it means the refresh_token is likely invalid or expired.
+        throw new Error('Failed to refresh Google Access Token. Check GOOGLE_REFRESH_TOKEN and OAuth2 setup.');
+    }
+
+    return google.drive({
+        version: 'v3',
+        auth: oauth2Client,
+    });
+}
 
 // Multer configuration for in-memory file storage
 const storage = multer.memoryStorage();
@@ -83,6 +99,14 @@ app.post('/api/extract-cover', upload.any(), async (req, res) => {
     let imageBuffer;
     let imageMimeType;
     let tempFilePath;
+
+    let drive;
+    try {
+        drive = await getAuthenticatedDriveClient();
+    } catch (authError) {
+        console.error('Authentication error before Google Drive operation:', authError.message);
+        return res.status(500).json({ error: 'Authentication error', details: authError.message });
+    }
 
     try {
         // --- Extract cover image from file ---
@@ -160,6 +184,10 @@ app.post('/api/extract-cover', upload.any(), async (req, res) => {
 
     } catch (error) {
         console.error('Error processing file:', error);
+        // Check for specific Google API errors
+        if (error.code === 401 || error.code === 403) {
+            return res.status(401).json({ error: 'Google Drive API authentication/permission error.', details: error.message });
+        }
         res.status(500).json({ error: error.message });
     } finally {
         if (tempFilePath) {

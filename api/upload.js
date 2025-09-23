@@ -59,6 +59,7 @@ const drive = google.drive({
 app.post('/api/upload', (req, res) => {
     upload(req, res, async (err) => {
         if (err) {
+            console.error('Multer file upload error:', err);
             return res.status(500).json({ success: false, error: 'File upload error', details: err.message });
         }
 
@@ -69,6 +70,14 @@ app.post('/api/upload', (req, res) => {
 
         const ebookBufferStream = new stream.PassThrough();
         ebookBufferStream.end(ebookFile.buffer);
+
+        let drive;
+        try {
+            drive = await getAuthenticatedDriveClient();
+        } catch (authError) {
+            console.error('Authentication error before Google Drive operation:', authError.message);
+            return res.status(500).json({ success: false, error: 'Authentication error', details: authError.message });
+        }
 
         try {
             // 1. Upload ebook file
@@ -111,6 +120,10 @@ app.post('/api/upload', (req, res) => {
 
         } catch (error) {
             console.error('Error during Google Drive upload process:', error);
+            // Check for specific Google API errors
+            if (error.code === 401 || error.code === 403) {
+                return res.status(401).json({ success: false, error: 'Google Drive API authentication/permission error.', details: error.message });
+            }
             res.status(500).json({ success: false, error: 'Error during upload process.', details: error.message });
         }
     });
