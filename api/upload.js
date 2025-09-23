@@ -32,9 +32,25 @@ const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.GOOGLE_REDIRECT_URI
 );
+
+// Set initial credentials with the refresh token
 oauth2Client.setCredentials({
     refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
 });
+
+// Listen for 'tokens' event to catch any updates to access or refresh tokens
+oauth2Client.on('tokens', (tokens) => {
+    if (tokens.refresh_token) {
+        // This indicates a new refresh token was issued.
+        // In a real application, you would save this to a persistent store (e.g., database).
+        console.log('New Google Refresh Token obtained:', tokens.refresh_token);
+        // You might want to update your environment variable or database here.
+        // For a serverless function, this might mean re-deploying with the new token
+        // or storing it in a persistent key-value store.
+    }
+    console.log('New Google Access Token obtained:', tokens.access_token);
+});
+
 const drive = google.drive({
     version: 'v3',
     auth: oauth2Client,
