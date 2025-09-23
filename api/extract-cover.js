@@ -81,6 +81,13 @@ async function getAuthenticatedDriveClient() {
     });
 }
 
+// Initialize Google Drive client (this will be used by the route handlers)
+// The getAuthenticatedDriveClient function will ensure it's authenticated before each use.
+const drive = google.drive({
+    version: 'v3',
+    auth: oauth2Client,
+});
+
 // Multer configuration for in-memory file storage
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
