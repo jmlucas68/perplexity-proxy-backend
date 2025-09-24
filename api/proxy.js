@@ -32,29 +32,41 @@ app.post('/api/proxy', async (req, res) => {
     console.log('BIBLIOTECA_ADMIN env var:', process.env.BIBLIOTECA_ADMIN ? 'Set' : 'Not Set');
     console.log('GEMINI_API_KEY env var:', process.env.GEMINI_API_KEY ? 'Set' : 'Not Set');
 
-    const { action, password, prompt } = req.body;
+    const { action, userType, password, prompt } = req.body;
 
     // --- VALIDACIÓN DE CONTRASEÑA DE ADMIN ---
-  if (action === 'validate_password') {
-    console.log('[Backend Log] Received password validation request.');
-    const ADMIN_PASSWORD = process.env.BIBLIOTECA_ADMIN;
+  if (action === 'login') {
+    console.log('[Backend Log] Received login request.');
+    const BIBLIOTECARIO_PASSWORD = process.env.BIBLIOTECA_ADMIN; // Existing admin password
+    const LECTOR_PASSWORD = process.env.BIBLIOTECA_LECTOR; // New lector password
 
-    if (ADMIN_PASSWORD) {
-        console.log(`[Backend Log] BIBLIOTECA_ADMIN variable found. Length: ${ADMIN_PASSWORD.length}`);
+    if (userType === 'Bibliotecario') {
+        if (!BIBLIOTECARIO_PASSWORD) {
+            console.log('[Backend Log] Error: BIBLIOTECA_ADMIN environment variable NOT found.');
+            return res.status(500).json({ success: false, error: 'Admin password not configured on server.' });
+        }
+        if (password === BIBLIOTECARIO_PASSWORD) {
+            console.log('[Backend Log] Bibliotecario login successful.');
+            return res.status(200).json({ success: true, role: 'Bibliotecario' });
+        } else {
+            console.log('[Backend Log] Bibliotecario password mismatch.');
+            return res.status(401).json({ success: false, error: 'Invalid password for Bibliotecario.' });
+        }
+    } else if (userType === 'Lector') {
+        if (!LECTOR_PASSWORD) {
+            console.log('[Backend Log] Error: BIBLIOTECA_LECTOR environment variable NOT found.');
+            return res.status(500).json({ success: false, error: 'Lector password not configured on server.' });
+        }
+        if (password === LECTOR_PASSWORD) {
+            console.log('[Backend Log] Lector login successful.');
+            return res.status(200).json({ success: true, role: 'Lector' });
+        } else {
+            console.log('[Backend Log] Lector password mismatch.');
+            return res.status(401).json({ success: false, error: 'Invalid password for Lector.' });
+        }
     } else {
-        console.log('[Backend Log] Error: BIBLIOTECA_ADMIN environment variable NOT found.');
-    }
-    console.log(`[Backend Log] Password from frontend has length: ${password ? password.length : 0}`);
-
-    if (!ADMIN_PASSWORD) {
-        return res.status(500).json({ error: 'Admin password not configured on server.' });
-    }
-    if (password === ADMIN_PASSWORD) {
-        console.log('[Backend Log] Passwords match. Sending success.');
-        return res.status(200).json({ isValid: true });
-    } else {
-        console.log('[Backend Log] Passwords do NOT match. Sending failure.');
-        return res.status(401).json({ isValid: false, error: 'Invalid password.' });
+        console.log('[Backend Log] Invalid userType received.');
+        return res.status(400).json({ success: false, error: 'Invalid user type provided.' });
     }
   }
 
