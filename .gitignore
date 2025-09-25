@@ -1,0 +1,5 @@
+# Ignore compiled JavaScript files in the api directory
+api/**/*.js
+
+# Ignore node_modules
+node_modules
