@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // If Google returns an HTML page, try to extract the real download link.
   if (contentType.includes('text/html')) {
     const html = await upstream.text();
-    const actionMatch = html.match(/<form id="download-form" [^>]*action="([^"\]+)"/);
+    const actionMatch = html.match(/<form id="download-form"[^>]*action="([^"]+)"/);
 
     if (!actionMatch || !actionMatch[1]) {
       // DEBUG: Return the HTML to see why parsing failed.
