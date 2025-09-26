@@ -39,37 +39,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(502).send(`Upstream error: ${upstream.status}`);
   }
 
-  // If Google returns an HTML page, try to extract the real download link.
+  // If Google returns an HTML page (like a login or virus scan warning), we can't proceed.
   if (contentType.includes('text/html')) {
-    const html = await upstream.text();
-    const actionMatch = html.match(/<form id="download-form"[^>]*action="([^"]+)"/);
-
-    if (!actionMatch || !actionMatch[1]) {
-      // DEBUG: Return the HTML to see why parsing failed.
-      res.setHeader('Content-Type', 'text/plain');
-      return res.status(502).send(html);
-    }
-    
-    let finalUrl = actionMatch[1].replace(/&amp;/g, '&');
-
-    const secondUpstream = await fetch(finalUrl, {
-      redirect: 'follow',
-      headers: range ? { Range: range } : undefined,
-    });
-
-    if (!secondUpstream.ok && secondUpstream.status !== 206) {
-      return res.status(502).send(`Upstream error on second request: ${secondUpstream.status}`);
-    }
-    
-    const finalContentType = secondUpstream.headers.get('content-type') || 'application/epub+zip';
-    const finalContentRange = secondUpstream.headers.get('content-range');
-    const finalAb = await secondUpstream.arrayBuffer();
-
-    if (finalContentRange) res.setHeader('Content-Range', finalContentRange);
-    res.setHeader('Content-Type', finalContentType);
-    
-    const finalStatus = finalContentRange ? 206 : 200;
-    return res.status(finalStatus).send(Buffer.from(finalAb));
+    return res.status(502).send('Failed to get direct download link from Google Drive. The file might not be shared publicly.');
   }
 
   // If it's not HTML, proceed as normal
