@@ -15,9 +15,5 @@
       "maxDuration": 60
     }
   },
-  "build": {
-    "env": {
-      "VERCEL_BUILD_IGNORE": "**/*.ts"
-    }
-  }
+  
 }
