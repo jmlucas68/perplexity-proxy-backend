@@ -45,7 +45,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const actionMatch = html.match(/<form id="download-form" [^>]*action="([^"\]+)"/);
 
     if (!actionMatch || !actionMatch[1]) {
-      return res.status(502).send('Failed to get direct download link. Could not find download form in Google Drive response.');
+      // DEBUG: Return the HTML to see why parsing failed.
+      res.setHeader('Content-Type', 'text/plain');
+      return res.status(502).send(html);
     }
     
     let finalUrl = actionMatch[1].replace(/&amp;/g, '&');
