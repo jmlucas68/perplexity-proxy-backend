@@ -39,14 +39,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(502).send(`Upstream error: ${upstream.status}`);
   }
 
-  // If Google returns an HTML page (like a virus scan warning), we can't proceed.
+  // If Google returns an HTML page, try to extract the real download link.
   if (contentType.includes('text/html')) {
-    return res.status(502).send('Failed to get direct download link from Google Drive. Received an HTML page instead of the file.');
+    const html = await upstream.text();
+    const actionMatch = html.match(/<form id="download-form" [^>]*action="([^"\]+)"/);
+
+    if (!actionMatch || !actionMatch[1]) {
+      return res.status(502).send('Failed to get direct download link. Could not find download form in Google Drive response.');
+    }
+    
+    let finalUrl = actionMatch[1].replace(/&amp;/g, '&');
+
+    const secondUpstream = await fetch(finalUrl, {
+      redirect: 'follow',
+      headers: range ? { Range: range } : undefined,
+    });
+
+    if (!secondUpstream.ok && secondUpstream.status !== 206) {
+      return res.status(502).send(`Upstream error on second request: ${secondUpstream.status}`);
+    }
+    
+    const finalContentType = secondUpstream.headers.get('content-type') || 'application/epub+zip';
+    const finalContentRange = secondUpstream.headers.get('content-range');
+    const finalAb = await secondUpstream.arrayBuffer();
+
+    if (finalContentRange) res.setHeader('Content-Range', finalContentRange);
+    res.setHeader('Content-Type', finalContentType);
+    
+    const finalStatus = finalContentRange ? 206 : 200;
+    return res.status(finalStatus).send(Buffer.from(finalAb));
   }
 
+  // If it's not HTML, proceed as normal
   const ab = await upstream.arrayBuffer();
 
-  // Propagate range headers if they exist
   const contentRange = upstream.headers.get('content-range');
   if (contentRange) res.setHeader('Content-Range', contentRange);
 
