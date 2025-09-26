@@ -81,7 +81,7 @@ app.post('/api/proxy', async (req, res) => {
       return res.status(400).json({ error: 'No se ha proporcionado un \'prompt\'.' });
     }
 
-    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
+    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
     console.log('Calling URL:', GEMINI_API_URL.replace(API_KEY, 'HIDDEN_KEY'));
 
     const payload = {
