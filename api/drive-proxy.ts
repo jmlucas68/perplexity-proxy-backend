@@ -34,18 +34,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     headers: range ? { Range: range } : undefined,
   });
 
+  const contentType = upstream.headers.get('content-type') || '';
   if (!upstream.ok && upstream.status !== 206) {
     return res.status(502).send(`Upstream error: ${upstream.status}`);
   }
 
+  // If Google returns an HTML page (like a virus scan warning), we can't proceed.
+  if (contentType.includes('text/html')) {
+    return res.status(502).send('Failed to get direct download link from Google Drive. Received an HTML page instead of the file.');
+  }
+
   const ab = await upstream.arrayBuffer();
 
-  // Propagar cabeceras de rango si existen
+  // Propagate range headers if they exist
   const contentRange = upstream.headers.get('content-range');
   if (contentRange) res.setHeader('Content-Range', contentRange);
 
-  const contentType = upstream.headers.get('content-type') || 'application/epub+zip';
-  res.setHeader('Content-Type', contentType.includes('text/html') ? 'application/epub+zip' : contentType);
+  res.setHeader('Content-Type', contentType || 'application/epub+zip');
 
   const status = contentRange ? 206 : 200;
   return res.status(status).send(Buffer.from(ab));
