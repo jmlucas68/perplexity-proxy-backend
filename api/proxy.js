@@ -26,7 +26,7 @@ app.use(express.json());
 
 // --- LÓGICA PARA LA API DE GEMINI ---
 
-app.post('/', async (req, res) => {
+app.post('/api/proxy', async (req, res) => {
   try {
     console.log('Request received:', req.body);
     console.log('BIBLIOTECA_ADMIN env var:', process.env.BIBLIOTECA_ADMIN ? 'Set' : 'Not Set');

@@ -72,7 +72,7 @@ async function getAuthenticatedDriveClient() {
     });
 }
 
-app.post('/', (req, res) => {
+app.post('/api/upload', (req, res) => {
     upload(req, res, async (err) => {
         if (err) {
             console.error('Multer file upload error:', err);
