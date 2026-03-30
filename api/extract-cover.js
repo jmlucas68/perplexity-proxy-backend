@@ -85,7 +85,7 @@ async function getAuthenticatedDriveClient() {
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-app.post('/api/extract-cover', upload.any(), async (req, res) => {
+app.post('/', upload.any(), async (req, res) => {
     if (!req.files || req.files.length === 0) {
         return res.status(400).send('No file uploaded.');
     }

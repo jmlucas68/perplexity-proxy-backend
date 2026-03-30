@@ -26,7 +26,7 @@ app.use(express.json());
 
 // --- LÓGICA PARA LA API DE GEMINI ---
 
-app.post('/api/proxy', async (req, res) => {
+app.post(['/', '/api/proxy'], async (req, res) => {
   try {
     console.log('Request received:', req.body);
     console.log('BIBLIOTECA_ADMIN env var:', process.env.BIBLIOTECA_ADMIN ? 'Set' : 'Not Set');
@@ -36,11 +36,13 @@ app.post('/api/proxy', async (req, res) => {
 
     // --- VALIDACIÓN DE CONTRASEÑA DE ADMIN ---
   if (action === 'login') {
-    console.log('[Backend Log] Received login request.');
-    const BIBLIOTECARIO_PASSWORD = process.env.BIBLIOTECA_ADMIN; // Existing admin password
-    const LECTOR_PASSWORD = process.env.BIBLIOTECA_LECTOR; // New lector password
+    console.log(`[Backend Debug] Login attempt for userType: '${userType}'`);
+    console.log(`[Backend Debug] Password received from client - Type: ${typeof password}, Length: ${password ? password.length : 0}`);
 
     if (userType === 'Bibliotecario') {
+        const BIBLIOTECARIO_PASSWORD = process.env.BIBLIOTECA_ADMIN;
+        console.log(`[Backend Debug] BIBLIOTECA_ADMIN from env - Type: ${typeof BIBLIOTECARIO_PASSWORD}, Length: ${BIBLIOTECARIO_PASSWORD ? BIBLIOTECARIO_PASSWORD.length : "'Not Set'"}`);
+        
         if (!BIBLIOTECARIO_PASSWORD) {
             console.log('[Backend Log] Error: BIBLIOTECA_ADMIN environment variable NOT found.');
             return res.status(500).json({ success: false, error: 'Admin password not configured on server.' });
@@ -49,10 +51,13 @@ app.post('/api/proxy', async (req, res) => {
             console.log('[Backend Log] Bibliotecario login successful.');
             return res.status(200).json({ success: true, role: 'Bibliotecario' });
         } else {
-            console.log('[Backend Log] Bibliotecario password mismatch.');
+            console.log('[Backend Debug] Bibliotecario password comparison failed.');
             return res.status(401).json({ success: false, error: 'Invalid password for Bibliotecario.' });
         }
     } else if (userType === 'Lector') {
+        const LECTOR_PASSWORD = process.env.BIBLIOTECA_LECTOR;
+        console.log(`[Backend Debug] BIBLIOTECA_LECTOR from env - Type: ${typeof LECTOR_PASSWORD}, Length: ${LECTOR_PASSWORD ? LECTOR_PASSWORD.length : "'Not Set'"}`);
+
         if (!LECTOR_PASSWORD) {
             console.log('[Backend Log] Error: BIBLIOTECA_LECTOR environment variable NOT found.');
             return res.status(500).json({ success: false, error: 'Lector password not configured on server.' });
@@ -61,11 +66,11 @@ app.post('/api/proxy', async (req, res) => {
             console.log('[Backend Log] Lector login successful.');
             return res.status(200).json({ success: true, role: 'Lector' });
         } else {
-            console.log('[Backend Log] Lector password mismatch.');
+            console.log('[Backend Debug] Lector password comparison failed.');
             return res.status(401).json({ success: false, error: 'Invalid password for Lector.' });
         }
     } else {
-        console.log('[Backend Log] Invalid userType received.');
+        console.log(`[Backend Log] Invalid userType received: ${userType}`);
         return res.status(400).json({ success: false, error: 'Invalid user type provided.' });
     }
   }
