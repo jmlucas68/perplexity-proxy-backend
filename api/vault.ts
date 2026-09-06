@@ -42,20 +42,44 @@ async function children(drive: ReturnType<typeof driveClient>, folderId: string)
   return files;
 }
 
+async function indexVault(drive: ReturnType<typeof driveClient>) {
+  const queue = [VAULT_ROOT_ID];
+  const files: any[] = [];
+  while (queue.length) {
+    const batch = await children(drive, queue.shift()!);
+    files.push(...batch);
+    queue.push(...batch.filter(file => file.mimeType === FOLDER).map(file => file.id!));
+  }
+  return files;
+}
+
+async function readText(drive: ReturnType<typeof driveClient>, id: string) {
+  const file = await drive.files.get({ fileId: id, alt: 'media' }, { responseType: 'arraybuffer' });
+  return Buffer.from(file.data as ArrayBuffer).toString('utf8');
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!authorized(req)) return res.status(401).json({ error: 'Unauthorized' });
   if (req.method !== 'GET') return res.status(405).end();
   try {
     const drive = serviceDriveClient();
     if (req.query.action === 'index') {
-      const queue = [VAULT_ROOT_ID];
-      const files: any[] = [];
-      while (queue.length) {
-        const batch = await children(drive, queue.shift()!);
-        files.push(...batch);
-        queue.push(...batch.filter(file => file.mimeType === FOLDER).map(file => file.id!));
-      }
+      const files = await indexVault(drive);
       return res.status(200).json({ rootId: VAULT_ROOT_ID, files });
+    }
+    if (req.query.action === 'backlinks' && typeof req.query.id === 'string') {
+      const files = await indexVault(drive);
+      const target = files.find(file => file.id === req.query.id);
+      if (!target) return res.status(404).json({ error: 'Note not found' });
+      const targetName = target.name.replace(/\.(md|markdown)$/i, '').trim().toLocaleLowerCase();
+      const notes = files.filter(file => /\.(md|markdown)$/i.test(file.name));
+      const matches: any[] = [];
+      const contents = await Promise.all(notes.map(async file => ({ file, text: await readText(drive, file.id) })));
+      for (const { file, text } of contents) {
+        const found = [...text.matchAll(/!?\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g)].some(match => match[1].trim().replace(/\.md$/i, '').toLocaleLowerCase() === targetName);
+        if (found && file.id !== target.id) matches.push(file);
+      }
+      return res.status(200).json({ files: matches });
     }
     if (req.query.action === 'content' && typeof req.query.id === 'string') {
       const metadata = await drive.files.get({ fileId: req.query.id, fields: 'mimeType' });
