@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
+import crypto from 'node:crypto';
 
 const VAULT_ROOT_ID = '1moV9p3h2UNaZ0hu2CuPuED_NymsgRMfV';
 const FOLDER = 'application/vnd.google-apps.folder';
@@ -7,6 +8,24 @@ const FOLDER = 'application/vnd.google-apps.folder';
 function authorized(req: VercelRequest) {
   const expected = process.env.BOVEDA_PROXY_TOKEN;
   return expected && req.headers.authorization === `Bearer ${expected}`;
+}
+
+function sessionToken() {
+  const expires = Date.now() + 12 * 60 * 60 * 1000;
+  const payload = String(expires);
+  const secret = process.env.BOVEDA_PROXY_TOKEN || 'boveda-session';
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+  return `${payload}.${signature}`;
+}
+
+function validSession(req: VercelRequest) {
+  const token = req.headers['x-boveda-session'];
+  if (typeof token !== 'string') return false;
+  const [expires, signature] = token.split('.');
+  if (!expires || !signature || Number(expires) < Date.now()) return false;
+  const secret = process.env.BOVEDA_PROXY_TOKEN || 'boveda-session';
+  const expected = crypto.createHmac('sha256', secret).update(expires).digest('hex');
+  return signature.length === expected.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
 }
 
 function driveClient() {
@@ -60,9 +79,15 @@ async function readText(drive: ReturnType<typeof driveClient>, id: string) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!authorized(req)) return res.status(401).json({ error: 'Unauthorized' });
-  if (req.method !== 'GET') return res.status(405).end();
+  if (req.method !== 'GET' && !(req.method === 'POST' && req.query.action === 'login')) return res.status(405).end();
   try {
+    if (req.method === 'POST' && req.query.action === 'login') {
+      const password = typeof req.body?.password === 'string' ? req.body.password : '';
+      if (!process.env.BOVEDA_WEB_PASSWORD || password !== process.env.BOVEDA_WEB_PASSWORD) return res.status(401).json({ success: false });
+      return res.status(200).json({ success: true, session: sessionToken() });
+    }
     const drive = serviceDriveClient();
+    if (!validSession(req)) return res.status(401).json({ error: 'Login required' });
     if (req.query.action === 'index') {
       const files = await indexVault(drive);
       return res.status(200).json({ rootId: VAULT_ROOT_ID, files });
