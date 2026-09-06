@@ -58,8 +58,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ rootId: VAULT_ROOT_ID, files });
     }
     if (req.query.action === 'content' && typeof req.query.id === 'string') {
+      const metadata = await drive.files.get({ fileId: req.query.id, fields: 'mimeType' });
       const file = await drive.files.get({ fileId: req.query.id, alt: 'media' }, { responseType: 'arraybuffer' });
-      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.setHeader('Content-Type', metadata.data.mimeType || 'application/octet-stream');
       return res.status(200).send(Buffer.from(file.data as ArrayBuffer));
     }
     return res.status(400).json({ error: 'Unknown request' });
