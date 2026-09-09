@@ -41,6 +41,12 @@ Este es el endpoint principal con doble funcionalidad:
     2.  Sube esa imagen a Google Drive.
     3.  Actualiza la fila correspondiente en la tabla `books` de Supabase, añadiendo la URL de la nueva portada en el campo `url_portada`.
 
+### 2.4. `POST /api/register-drive-file`
+
+-   **Acción:** Registra un archivo que el administrador ya ha subido manualmente a Google Drive.
+-   **Cuerpo de la Solicitud (JSON):** `{ "fileUrl": "https://drive.google.com/file/d/.../view" }`.
+-   **Lógica:** Verifica que el archivo esté en la carpeta de entrada `Pendientes`, lo mueve a la carpeta definitiva de la biblioteca, le concede lectura pública y devuelve sus URLs. No transfiere el contenido del archivo a través de Vercel, por lo que sirve para PDFs grandes.
+
 ## 3. Configuración y Puesta en Marcha
 
 ### 3.1. Variables de Entorno
@@ -65,8 +71,12 @@ GOOGLE_CLIENT_SECRET=xxxxxxxxxxxx
 GOOGLE_REDIRECT_URI=https://developers.google.com/oauthplayground
 GOOGLE_REFRESH_TOKEN=1//xxxxxxxxxxxx
 
-# ID de la carpeta de Google Drive donde se subirán los archivos
+# ID de la carpeta definitiva de Google Drive donde se guardan los archivos registrados
 GOOGLE_DRIVE_FOLDER_ID=xxxxxxxxxxxx
+
+# ID de la carpeta de entrada. Los archivos grandes se suben manualmente aquí
+# antes de registrarlos desde la Biblioteca.
+GOOGLE_DRIVE_PENDING_FOLDER_ID=xxxxxxxxxxxx
 ```
 
 ### 3.2. Ejecución en Desarrollo Local
