@@ -50,7 +50,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const contentRange = upstream.headers.get('content-range');
   if (contentRange) res.setHeader('Content-Range', contentRange);
 
-  res.setHeader('Content-Type', contentType || 'application/epub+zip');
+  res.setHeader('Content-Type', contentType || 'application/octet-stream');
+  // Evita que los navegadores muestren PDFs y otros formatos compatibles en
+  // su visor integrado cuando se pulsa el botón de descarga de la biblioteca.
+  const upstreamDisposition = upstream.headers.get('content-disposition');
+  res.setHeader(
+    'Content-Disposition',
+    upstreamDisposition ? upstreamDisposition.replace(/^inline/i, 'attachment') : 'attachment; filename="download"'
+  );
 
   const status = contentRange ? 206 : 200;
   return res.status(status).send(Buffer.from(ab));
