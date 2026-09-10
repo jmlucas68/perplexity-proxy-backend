@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const cors = require('cors');
+const stream = require('stream');
 
 const allowedOrigins = [
     'https://jmlucas68.github.io',
@@ -29,6 +30,61 @@ function extractDriveId(inputUrl) {
 
 function sendError(res, status, error) {
     return res.status(status).json({ success: false, error });
+}
+
+/**
+ * Rasteriza la primera página de un PDF de Drive. Se carga bajo demanda para
+ * no penalizar el registro de formatos que no son PDF.
+ */
+async function extractPdfCover(drive, fileId, fileName, parentId) {
+    const [{ getDocument }, { createCanvas }] = await Promise.all([
+        import('pdfjs-dist/legacy/build/pdf.mjs'),
+        Promise.resolve(require('@napi-rs/canvas')),
+    ]);
+    const download = await drive.files.get(
+        { fileId, alt: 'media' },
+        { responseType: 'arraybuffer' }
+    );
+    const pdf = await getDocument({ data: new Uint8Array(download.data) }).promise;
+
+    try {
+        const page = await pdf.getPage(1);
+        const naturalViewport = page.getViewport({ scale: 1 });
+        // Limita el lado mayor para mantener la portada nítida sin generar
+        // imágenes innecesariamente grandes en la función serverless.
+        const scale = Math.min(2, 1600 / Math.max(naturalViewport.width, naturalViewport.height));
+        const viewport = page.getViewport({ scale });
+        const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+        const context = canvas.getContext('2d');
+
+        await page.render({ canvasContext: context, viewport }).promise;
+        const imageBuffer = canvas.toBuffer('image/jpeg', 90);
+        const baseName = String(fileName || 'ebook').replace(/\.[^.]+$/, '');
+        const coverName = `${baseName}_portada.jpg`;
+        const imageStream = new stream.PassThrough();
+        imageStream.end(imageBuffer);
+
+        const uploaded = await drive.files.create({
+            requestBody: { name: coverName, parents: [parentId] },
+            media: { mimeType: 'image/jpeg', body: imageStream },
+            fields: 'id',
+        });
+        const coverId = uploaded.data.id;
+        if (!coverId) throw new Error('Drive no devolvió el identificador de la portada.');
+
+        await drive.permissions.create({
+            fileId: coverId,
+            requestBody: { role: 'reader', type: 'anyone' },
+        });
+
+        return {
+            id: coverId,
+            viewUrl: `https://drive.google.com/file/d/${coverId}/view?usp=drivesdk`,
+            downloadUrl: `https://drive.google.com/uc?id=${coverId}&export=download`,
+        };
+    } finally {
+        await pdf.destroy();
+    }
 }
 
 module.exports = async (req, res) => {
@@ -74,6 +130,12 @@ module.exports = async (req, res) => {
                 return sendError(res, 403, 'El archivo debe estar en la carpeta de Drive Pendientes antes de registrarlo.');
             }
 
+            // La portada de los PDF es siempre una imagen independiente: la
+            // primera página se rasteriza y se guarda junto al ebook.
+            const cover = extension === 'pdf'
+                ? await extractPdfCover(drive, fileId, file.name, libraryFolderId)
+                : null;
+
             if (isInPendingFolder && !isAlreadyInLibrary) {
                 await drive.files.update({
                     fileId,
@@ -104,6 +166,8 @@ module.exports = async (req, res) => {
                 size: file.size || null,
                 viewUrl: `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`,
                 downloadUrl: `https://drive.google.com/uc?id=${fileId}&export=download`,
+                coverViewUrl: cover?.viewUrl ?? null,
+                coverDownloadUrl: cover?.downloadUrl ?? null,
             });
         } catch (error) {
             console.error('Error registering Drive file:', error);
