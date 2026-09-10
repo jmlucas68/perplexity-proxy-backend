@@ -1,6 +1,7 @@
 const { google } = require('googleapis');
 const cors = require('cors');
 const stream = require('stream');
+const { pathToFileURL } = require('url');
 
 const allowedOrigins = [
     'https://jmlucas68.github.io',
@@ -37,10 +38,16 @@ function sendError(res, status, error) {
  * no penalizar el registro de formatos que no son PDF.
  */
 async function extractPdfCover(drive, fileId, fileName, parentId) {
-    const [{ getDocument }, { createCanvas }] = await Promise.all([
+    const [{ getDocument, GlobalWorkerOptions }, { createCanvas }] = await Promise.all([
         import('pdfjs-dist/legacy/build/pdf.mjs'),
         Promise.resolve(require('@napi-rs/canvas')),
     ]);
+    // En producción el worker no se resuelve automáticamente desde el módulo
+    // principal. require.resolve también permite a Vercel incluirlo al trazar
+    // las dependencias de esta función.
+    GlobalWorkerOptions.workerSrc = pathToFileURL(
+        require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')
+    ).href;
     const download = await drive.files.get(
         { fileId, alt: 'media' },
         { responseType: 'arraybuffer' }
