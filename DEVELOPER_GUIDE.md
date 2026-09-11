@@ -47,6 +47,12 @@ Este es el endpoint principal con doble funcionalidad:
 -   **Cuerpo de la Solicitud (JSON):** `{ "fileUrl": "https://drive.google.com/file/d/.../view" }`.
 -   **Lógica:** Verifica que el archivo esté en la carpeta de entrada `Pendientes`, lo mueve a la carpeta definitiva de la biblioteca y devuelve sus URLs sin volverlo público. No transfiere el contenido del archivo a través de Vercel, por lo que sirve para PDFs grandes.
 
+### 2.5. `POST /api/delete-book-files`
+
+-   **Acción:** Elimina de Google Drive todos los ficheros asociados a los formatos de un libro.
+-   **Autorización:** Requiere un token de sesión de Bibliotecario emitido al iniciar sesión.
+-   **Lógica:** Solo admite ficheros que pertenezcan a la carpeta configurada de la biblioteca. Borra, mediante la clave de servicio, las filas de `book_formats` y `books` en Supabase; si se solicita, antes elimina los ficheros de Drive.
+
 ## 3. Configuración y Puesta en Marcha
 
 ### 3.1. Variables de Entorno
@@ -59,6 +65,9 @@ GEMINI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
 
 # Contraseña para el modo administrador de la Biblioteca
 BIBLIOTECA_ADMIN=tu_contraseña_secreta
+# Se recomienda configurar una clave independiente para firmar las sesiones
+# de bibliotecario usadas por las operaciones de borrado.
+BIBLIOTECA_ADMIN_TOKEN_SECRET=una_clave_larga_y_aleatoria
 
 # Credenciales de Supabase
 SUPABASE_URL=https://tu-proyecto.supabase.co

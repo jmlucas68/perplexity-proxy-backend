@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const crypto = require('crypto');
 
 const app = express();
 
@@ -23,6 +24,13 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.json());
+
+function createAdminToken() {
+  const payload = Buffer.from(JSON.stringify({ role: 'Bibliotecario', exp: Date.now() + (7 * 24 * 60 * 60 * 1000) })).toString('base64url');
+  const secret = process.env.BIBLIOTECA_ADMIN_TOKEN_SECRET || process.env.BIBLIOTECA_ADMIN;
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
 
 // --- LÓGICA PARA LA API DE GEMINI ---
 
@@ -47,7 +55,7 @@ app.post('/api/proxy', async (req, res) => {
         }
         if (password === BIBLIOTECARIO_PASSWORD) {
             console.log('[Backend Log] Bibliotecario login successful.');
-            return res.status(200).json({ success: true, role: 'Bibliotecario' });
+            return res.status(200).json({ success: true, role: 'Bibliotecario', adminToken: createAdminToken() });
         } else {
             console.log('[Backend Log] Bibliotecario password mismatch.');
             return res.status(401).json({ success: false, error: 'Invalid password for Bibliotecario.' });
