@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { google } from 'googleapis';
 
 function extractDriveId(inputUrl: string | null): string | null {
   if (!inputUrl) return null;
@@ -6,6 +7,23 @@ function extractDriveId(inputUrl: string | null): string | null {
   if (p?.[1]) return p[1];
   const d = inputUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)\//);
   return d?.[1] || null;
+}
+
+function serviceDriveClient() {
+  // Misma cuenta de servicio que utiliza Bóveda Web en este backend.
+  const raw = process.env.GOOGLE_DRIVE_CREDENTIALS;
+  if (!raw) throw new Error('Missing Google Drive service-account credentials');
+  const json = raw.startsWith('base64:')
+    ? Buffer.from(raw.slice('base64:'.length), 'base64').toString('utf8')
+    : raw;
+  const credentials = JSON.parse(json);
+  if (typeof credentials.private_key === 'string') credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+  if (!credentials.client_email || !credentials.private_key) throw new Error('Invalid Google Drive service-account credentials');
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+  });
+  return google.drive({ version: 'v3', auth });
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -26,39 +44,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const driveId = id || extractDriveId(url);
   if (!driveId) return res.status(400).send('Missing Google Drive file id or url');
 
-  const downloadUrl = `https://drive.google.com/uc?export=download&id=${driveId}`;
-  const range = req.headers.range;
+  try {
+    const drive = serviceDriveClient();
+    const metadata = await drive.files.get({
+      fileId: driveId,
+      fields: 'name,mimeType',
+      supportsAllDrives: true,
+    });
+    const file = await drive.files.get(
+      { fileId: driveId, alt: 'media', supportsAllDrives: true },
+      { responseType: 'arraybuffer' },
+    );
+    const contentType = metadata.data.mimeType || 'application/octet-stream';
+    const fileName = (metadata.data.name || 'download').replace(/["\r\n]/g, '_');
+    const inline = String(req.query.inline || '') === '1' && contentType.startsWith('image/');
 
-  const upstream = await fetch(downloadUrl, {
-    redirect: 'follow',
-    headers: range ? { Range: range } : undefined,
-  });
-
-  const contentType = upstream.headers.get('content-type') || '';
-  if (!upstream.ok && upstream.status !== 206) {
-    return res.status(502).send(`Upstream error: ${upstream.status}`);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${fileName}"`);
+    return res.status(200).send(Buffer.from(file.data as ArrayBuffer));
+  } catch (error: any) {
+    console.error('Drive proxy error:', error?.message || error);
+    const status = error?.code === 404 ? 404 : error?.code === 401 || error?.code === 403 ? 403 : 502;
+    return res.status(status).send('Google Drive file is not available to the library service account.');
   }
-
-  // If Google returns an HTML page (like a login or virus scan warning), we can't proceed.
-  if (contentType.includes('text/html')) {
-    return res.status(502).send('Failed to get direct download link from Google Drive. The file might not be shared publicly.');
-  }
-
-  // If it's not HTML, proceed as normal
-  const ab = await upstream.arrayBuffer();
-
-  const contentRange = upstream.headers.get('content-range');
-  if (contentRange) res.setHeader('Content-Range', contentRange);
-
-  res.setHeader('Content-Type', contentType || 'application/octet-stream');
-  // Evita que los navegadores muestren PDFs y otros formatos compatibles en
-  // su visor integrado cuando se pulsa el botón de descarga de la biblioteca.
-  const upstreamDisposition = upstream.headers.get('content-disposition');
-  res.setHeader(
-    'Content-Disposition',
-    upstreamDisposition ? upstreamDisposition.replace(/^inline/i, 'attachment') : 'attachment; filename="download"'
-  );
-
-  const status = contentRange ? 206 : 200;
-  return res.status(status).send(Buffer.from(ab));
 }

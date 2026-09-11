@@ -79,11 +79,6 @@ async function extractPdfCover(drive, fileId, fileName, parentId) {
         const coverId = uploaded.data.id;
         if (!coverId) throw new Error('Drive no devolvió el identificador de la portada.');
 
-        await drive.permissions.create({
-            fileId: coverId,
-            requestBody: { role: 'reader', type: 'anyone' },
-        });
-
         return {
             id: coverId,
             viewUrl: `https://drive.google.com/file/d/${coverId}/view?usp=drivesdk`,
@@ -149,20 +144,6 @@ module.exports = async (req, res) => {
                     addParents: libraryFolderId,
                     removeParents: pendingFolderId,
                     fields: 'id,parents',
-                });
-            }
-
-            const permissionsResponse = await drive.permissions.list({
-                fileId,
-                fields: 'permissions(id,type,role)',
-            });
-            const isPublic = (permissionsResponse.data.permissions || []).some(
-                (permission) => permission.type === 'anyone' && permission.role === 'reader'
-            );
-            if (!isPublic) {
-                await drive.permissions.create({
-                    fileId,
-                    requestBody: { role: 'reader', type: 'anyone' },
                 });
             }
 

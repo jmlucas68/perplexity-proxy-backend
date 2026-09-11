@@ -29,7 +29,7 @@ Este es el endpoint principal con doble funcionalidad:
 -   **Lógica:**
     1.  Recibe el archivo.
     2.  Lo sube a una carpeta específica en Google Drive usando las credenciales de la API de Google.
-    3.  Establece los permisos del archivo en Google Drive para que sea públicamente legible.
+    3.  Mantiene el archivo privado en Google Drive; el lector lo obtiene mediante el proxy autenticado.
     4.  Devuelve un JSON con las URLs de visualización (`viewUrl`) y descarga (`downloadUrl`) del archivo.
 
 ### 2.3. `POST /api/extract-cover`
@@ -45,7 +45,7 @@ Este es el endpoint principal con doble funcionalidad:
 
 -   **Acción:** Registra un archivo que el administrador ya ha subido manualmente a Google Drive.
 -   **Cuerpo de la Solicitud (JSON):** `{ "fileUrl": "https://drive.google.com/file/d/.../view" }`.
--   **Lógica:** Verifica que el archivo esté en la carpeta de entrada `Pendientes`, lo mueve a la carpeta definitiva de la biblioteca, le concede lectura pública y devuelve sus URLs. No transfiere el contenido del archivo a través de Vercel, por lo que sirve para PDFs grandes.
+-   **Lógica:** Verifica que el archivo esté en la carpeta de entrada `Pendientes`, lo mueve a la carpeta definitiva de la biblioteca y devuelve sus URLs sin volverlo público. No transfiere el contenido del archivo a través de Vercel, por lo que sirve para PDFs grandes.
 
 ## 3. Configuración y Puesta en Marcha
 
@@ -79,7 +79,13 @@ GOOGLE_DRIVE_FOLDER_ID=xxxxxxxxxxxx
 GOOGLE_DRIVE_PENDING_FOLDER_ID=xxxxxxxxxxxx
 ```
 
-### 3.2. Ejecución en Desarrollo Local
+### 3.2. Acceso privado de los lectores
+
+El endpoint `GET /api/drive-proxy` reutiliza `GOOGLE_DRIVE_CREDENTIALS`, la misma cuenta de servicio de Bóveda Web, para descargar libros y portadas. No es necesario compartir cada archivo públicamente. Para evitar problemas de formato se admite el valor precedido por `base64:`.
+
+Comparte la carpeta raíz de la Biblioteca de Google Drive con el `client_email` de esa cuenta, como **Lector**. Los libros y portadas que estén dentro de esa carpeta quedarán accesibles para el proxy, pero no para visitantes directos de Drive.
+
+### 3.3. Ejecución en Desarrollo Local
 
 1.  **Instalar Dependencias:**
     ```bash
@@ -97,7 +103,7 @@ GOOGLE_DRIVE_PENDING_FOLDER_ID=xxxxxxxxxxxx
     ```
     -   El servidor se iniciará (por defecto en el puerto 3000) y mostrará en la consola si las variables de entorno están cargadas.
 
-### 3.3. Despliegue en Vercel
+### 3.4. Despliegue en Vercel
 
 1.  **Conectar Repositorio:** Conecta tu repositorio de GitHub a tu cuenta de Vercel.
 2.  **Configurar Proyecto:**

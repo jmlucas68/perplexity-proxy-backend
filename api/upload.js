@@ -114,14 +114,8 @@ app.post('/api/upload', (req, res) => {
                 throw new Error('Google Drive upload did not return a file ID.');
             }
 
-            // 2. Make file publicly readable
-            await driveInstance.permissions.create({
-                fileId: fileId,
-                requestBody: {
-                    role: 'reader',
-                    type: 'anyone',
-                },
-            });
+            // 2. Los archivos permanecen privados. El lector los sirve mediante
+            //    la cuenta de servicio autorizada para la carpeta Biblioteca.
 
             // 3. Construct both URLs
             const viewUrl = `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`;
