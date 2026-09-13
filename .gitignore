@@ -1,6 +1,12 @@
 # Ignore compiled JavaScript files in the api directory
 api/**/*.js
 !api/delete-book-files.js
+!api/book-cover.js
 
 # Ignore node_modules
 node_modules
+
+# Local secrets used to run the proxy must never be published.
+.env
+.env.*
+!.env.example
