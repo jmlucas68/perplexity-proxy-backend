@@ -73,17 +73,7 @@ async function saveCover({ bookId, buffer, mimeType, fileName }) {
     return { viewUrl, downloadUrl };
 }
 
-async function findCoverImage(title, author) {
-    const query = [title && `intitle:${title}`, author && `inauthor:${author}`].filter(Boolean).join('+');
-    if (!query) throw new Error('Indica al menos el título para buscar una portada.');
-    const { data } = await axios.get('https://www.googleapis.com/books/v1/volumes', {
-        params: { q: query, maxResults: 10, printType: 'books' },
-        timeout: 15000,
-    });
-    const volume = (data.items || []).find(item => item.volumeInfo?.imageLinks);
-    const links = volume?.volumeInfo?.imageLinks;
-    const imageUrl = links?.extraLarge || links?.large || links?.medium || links?.thumbnail || links?.smallThumbnail;
-    if (!imageUrl) throw new Error('No se ha encontrado una portada para este libro.');
+async function downloadImage(imageUrl, sourceTitle) {
     const image = await axios.get(String(imageUrl).replace(/^http:/, 'https:'), {
         responseType: 'arraybuffer',
         timeout: 15000,
@@ -91,7 +81,48 @@ async function findCoverImage(title, author) {
     });
     const mimeType = String(image.headers['content-type'] || 'image/jpeg').split(';')[0];
     if (!mimeType.startsWith('image/')) throw new Error('La imagen encontrada no tiene un formato válido.');
-    return { buffer: Buffer.from(image.data), mimeType, sourceTitle: volume.volumeInfo?.title || title };
+    return { buffer: Buffer.from(image.data), mimeType, sourceTitle };
+}
+
+async function findGoogleBooksCover(title, author) {
+    const query = [title && `intitle:${title}`, author && `inauthor:${author}`].filter(Boolean).join('+');
+    const { data } = await axios.get('https://www.googleapis.com/books/v1/volumes', {
+        params: { q: query, maxResults: 10, printType: 'books' },
+        timeout: 15000,
+    });
+    const volume = (data.items || []).find(item => item.volumeInfo?.imageLinks);
+    const links = volume?.volumeInfo?.imageLinks;
+    const imageUrl = links?.extraLarge || links?.large || links?.medium || links?.thumbnail || links?.smallThumbnail;
+    if (!imageUrl) throw new Error('Google Books no ha encontrado una portada.');
+    return downloadImage(imageUrl, volume.volumeInfo?.title || title);
+}
+
+async function findOpenLibraryCover(title, author) {
+    const { data } = await axios.get('https://openlibrary.org/search.json', {
+        params: { title, author, limit: 10, fields: 'title,cover_i,isbn' },
+        timeout: 15000,
+    });
+    const book = (data.docs || []).find(item => item.cover_i || item.isbn?.[0]);
+    if (!book) throw new Error('Open Library no ha encontrado una portada.');
+    const imageUrl = book.cover_i
+        ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg`
+        : `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(book.isbn[0])}-L.jpg`;
+    return downloadImage(imageUrl, book.title || title);
+}
+
+async function findCoverImage(title, author) {
+    if (!title && !author) throw new Error('Indica al menos el título para buscar una portada.');
+    try {
+        return await findGoogleBooksCover(title, author);
+    } catch (googleError) {
+        console.warn('Google Books no está disponible; se probará Open Library.', googleError.response?.status || googleError.message);
+    }
+    try {
+        return await findOpenLibraryCover(title, author);
+    } catch (openLibraryError) {
+        console.warn('Open Library tampoco ha devuelto una portada.', openLibraryError.response?.status || openLibraryError.message);
+        throw new Error('No se ha encontrado una portada en las fuentes disponibles. Inténtalo más tarde o súbela desde el dispositivo.');
+    }
 }
 
 const express = require('express');
