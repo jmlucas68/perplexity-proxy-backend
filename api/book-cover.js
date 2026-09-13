@@ -110,6 +110,51 @@ async function findOpenLibraryCover(title, author) {
     return downloadImage(imageUrl, book.title || title);
 }
 
+function imageUrlsFromGoogleResults(html) {
+    const urls = [];
+    const seen = new Set();
+    const matches = String(html || '').match(/https?:\\?\/\\?\/[^\s"'<>()\\]+/g) || [];
+    for (const value of matches) {
+        const url = value
+            .replace(/\\\\\//g, '/')
+            .replace(/\\u0026/g, '&')
+            .replace(/\\u003d/g, '=')
+            .replace(/&amp;/g, '&');
+        try {
+            const parsed = new URL(url);
+            const host = parsed.hostname.toLowerCase();
+            const isGoogleAsset = host.endsWith('google.com') || host.endsWith('googleusercontent.com') || host.endsWith('gstatic.com');
+            const isLocalAddress = host === 'localhost' || host === '::1' || /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
+            if (!isGoogleAsset && !isLocalAddress && !seen.has(parsed.href)) {
+                seen.add(parsed.href);
+                urls.push(parsed.href);
+            }
+        } catch {
+            // Las coincidencias que no sean URL completas no son imágenes utilizables.
+        }
+    }
+    return urls;
+}
+
+async function findGoogleImagesCover(title, author) {
+    const query = [title, author, 'portada libro'].filter(Boolean).join(' ');
+    const { data } = await axios.get('https://www.google.com/search', {
+        params: { q: query, tbm: 'isch', hl: 'es', safe: 'active' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BibliotecaCoverBot/1.0)' },
+        timeout: 15000,
+    });
+    const candidates = imageUrlsFromGoogleResults(data).slice(0, 12);
+    if (!candidates.length) throw new Error('Google Imágenes no ha devuelto resultados utilizables.');
+    for (const imageUrl of candidates) {
+        try {
+            return await downloadImage(imageUrl, title);
+        } catch (error) {
+            console.warn('No se ha podido descargar un resultado de Google Imágenes.', error.response?.status || error.message);
+        }
+    }
+    throw new Error('No se ha podido descargar ninguna imagen de Google Imágenes.');
+}
+
 async function findCoverImage(title, author) {
     if (!title && !author) throw new Error('Indica al menos el título para buscar una portada.');
     try {
@@ -120,7 +165,12 @@ async function findCoverImage(title, author) {
     try {
         return await findOpenLibraryCover(title, author);
     } catch (openLibraryError) {
-        console.warn('Open Library tampoco ha devuelto una portada.', openLibraryError.response?.status || openLibraryError.message);
+        console.warn('Open Library tampoco ha devuelto una portada; se probará Google Imágenes.', openLibraryError.response?.status || openLibraryError.message);
+    }
+    try {
+        return await findGoogleImagesCover(title, author);
+    } catch (googleImagesError) {
+        console.warn('Google Imágenes tampoco ha devuelto una portada.', googleImagesError.response?.status || googleImagesError.message);
         throw new Error('No se ha encontrado una portada en las fuentes disponibles. Inténtalo más tarde o súbela desde el dispositivo.');
     }
 }
