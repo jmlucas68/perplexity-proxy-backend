@@ -121,8 +121,8 @@ module.exports = async (req, res) => {
             if (file.trashed) return sendError(res, 400, 'El archivo está en la papelera de Drive.');
 
             const extension = String(file.name || '').split('.').pop().toLowerCase();
-            if (!['pdf', 'epub', 'mobi', 'azw3'].includes(extension)) {
-                return sendError(res, 400, 'Solo se pueden registrar archivos PDF, EPUB, MOBI o AZW3.');
+            if (!['pdf', 'epub', 'mobi', 'azw3', 'cbr'].includes(extension)) {
+                return sendError(res, 400, 'Solo se pueden registrar archivos PDF, EPUB, MOBI, AZW3 o CBR.');
             }
 
             const parents = file.parents || [];
