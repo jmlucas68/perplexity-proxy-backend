@@ -108,9 +108,11 @@ async function extractPdfCover(drive, fileId, fileName, parentId) {
 }
 
 /**
- * Extrae la primera página de imagen de un CBR y la guarda como portada en
- * Drive. Solo se descomprime esa página, aunque el archivo CBR completo se
- * descarga para poder leer su índice RAR.
+ * Extrae la primera página de lectura de un CBR y la guarda como portada en
+ * Drive. El orden físico de las entradas RAR no es necesariamente el orden
+ * del cómic, por lo que se ordenan naturalmente por nombre (001, 002, 010).
+ * Solo se descomprime esa página, aunque el archivo CBR completo se descarga
+ * para poder leer su índice RAR.
  */
 async function extractCbrCover(drive, fileId, fileName, parentId) {
     const download = await drive.files.get(
@@ -122,9 +124,12 @@ async function extractCbrCover(drive, fileId, fileName, parentId) {
         : Uint8Array.from(download.data).buffer;
     const extractor = await createExtractorFromData({ data });
     const { fileHeaders } = extractor.getFileList();
-    const firstImage = [...fileHeaders].find(file =>
-        !file.flags.directory && CBR_IMAGE_TYPES.has(getFileExtension(file.name))
-    );
+    const [firstImage] = [...fileHeaders]
+        .filter(file => !file.flags.directory && CBR_IMAGE_TYPES.has(getFileExtension(file.name)))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', {
+            numeric: true,
+            sensitivity: 'base',
+        }));
 
     if (!firstImage) {
         throw new Error('El archivo CBR no contiene ninguna página de imagen compatible.');
