@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const cors = require('cors');
 const stream = require('stream');
 const { pathToFileURL } = require('url');
+const { createExtractorFromData } = require('node-unrar-js');
 
 const allowedOrigins = [
     'https://jmlucas68.github.io',
@@ -31,6 +32,38 @@ function extractDriveId(inputUrl) {
 
 function sendError(res, status, error) {
     return res.status(status).json({ success: false, error });
+}
+
+const CBR_IMAGE_TYPES = new Map([
+    ['jpg', 'image/jpeg'],
+    ['jpeg', 'image/jpeg'],
+    ['png', 'image/png'],
+    ['gif', 'image/gif'],
+    ['webp', 'image/webp'],
+    ['avif', 'image/avif'],
+]);
+
+function getFileExtension(fileName) {
+    return String(fileName || '').split('.').pop().toLowerCase();
+}
+
+async function uploadCover(drive, parentId, coverName, mimeType, imageBuffer) {
+    const imageStream = new stream.PassThrough();
+    imageStream.end(imageBuffer);
+
+    const uploaded = await drive.files.create({
+        requestBody: { name: coverName, parents: [parentId] },
+        media: { mimeType, body: imageStream },
+        fields: 'id',
+    });
+    const coverId = uploaded.data.id;
+    if (!coverId) throw new Error('Drive no devolvió el identificador de la portada.');
+
+    return {
+        id: coverId,
+        viewUrl: `https://drive.google.com/file/d/${coverId}/view?usp=drivesdk`,
+        downloadUrl: `https://drive.google.com/uc?id=${coverId}&export=download`,
+    };
 }
 
 /**
@@ -68,25 +101,51 @@ async function extractPdfCover(drive, fileId, fileName, parentId) {
         const imageBuffer = canvas.toBuffer('image/jpeg', 90);
         const baseName = String(fileName || 'ebook').replace(/\.[^.]+$/, '');
         const coverName = `${baseName}_portada.jpg`;
-        const imageStream = new stream.PassThrough();
-        imageStream.end(imageBuffer);
-
-        const uploaded = await drive.files.create({
-            requestBody: { name: coverName, parents: [parentId] },
-            media: { mimeType: 'image/jpeg', body: imageStream },
-            fields: 'id',
-        });
-        const coverId = uploaded.data.id;
-        if (!coverId) throw new Error('Drive no devolvió el identificador de la portada.');
-
-        return {
-            id: coverId,
-            viewUrl: `https://drive.google.com/file/d/${coverId}/view?usp=drivesdk`,
-            downloadUrl: `https://drive.google.com/uc?id=${coverId}&export=download`,
-        };
+        return uploadCover(drive, parentId, coverName, 'image/jpeg', imageBuffer);
     } finally {
         await pdf.destroy();
     }
+}
+
+/**
+ * Extrae la primera página de imagen de un CBR y la guarda como portada en
+ * Drive. Solo se descomprime esa página, aunque el archivo CBR completo se
+ * descarga para poder leer su índice RAR.
+ */
+async function extractCbrCover(drive, fileId, fileName, parentId) {
+    const download = await drive.files.get(
+        { fileId, alt: 'media' },
+        { responseType: 'arraybuffer' }
+    );
+    const data = download.data instanceof ArrayBuffer
+        ? download.data
+        : Uint8Array.from(download.data).buffer;
+    const extractor = await createExtractorFromData({ data });
+    const { fileHeaders } = extractor.getFileList();
+    const firstImage = [...fileHeaders].find(file =>
+        !file.flags.directory && CBR_IMAGE_TYPES.has(getFileExtension(file.name))
+    );
+
+    if (!firstImage) {
+        throw new Error('El archivo CBR no contiene ninguna página de imagen compatible.');
+    }
+
+    const { files } = extractor.extract({ files: [firstImage.name] });
+    const [extracted] = [...files];
+    if (!extracted?.extraction) {
+        throw new Error('No se pudo extraer la primera página del archivo CBR.');
+    }
+
+    const extension = getFileExtension(firstImage.name);
+    const baseName = String(fileName || 'comic').replace(/\.[^.]+$/, '');
+    const coverName = `${baseName}_portada.${extension}`;
+    return uploadCover(
+        drive,
+        parentId,
+        coverName,
+        CBR_IMAGE_TYPES.get(extension),
+        Buffer.from(extracted.extraction)
+    );
 }
 
 module.exports = async (req, res) => {
@@ -120,7 +179,7 @@ module.exports = async (req, res) => {
             const file = metadataResponse.data;
             if (file.trashed) return sendError(res, 400, 'El archivo está en la papelera de Drive.');
 
-            const extension = String(file.name || '').split('.').pop().toLowerCase();
+            const extension = getFileExtension(file.name);
             if (!['pdf', 'epub', 'mobi', 'azw3', 'cbr'].includes(extension)) {
                 return sendError(res, 400, 'Solo se pueden registrar archivos PDF, EPUB, MOBI, AZW3 o CBR.');
             }
@@ -132,11 +191,14 @@ module.exports = async (req, res) => {
                 return sendError(res, 403, 'El archivo debe estar en la carpeta de Drive Pendientes antes de registrarlo.');
             }
 
-            // La portada de los PDF es siempre una imagen independiente: la
-            // primera página se rasteriza y se guarda junto al ebook.
+            // Las portadas se guardan como imágenes independientes junto al
+            // libro: se rasteriza la primera página del PDF y se extrae la
+            // primera página de imagen del CBR.
             const cover = extension === 'pdf'
                 ? await extractPdfCover(drive, fileId, file.name, libraryFolderId)
-                : null;
+                : extension === 'cbr'
+                    ? await extractCbrCover(drive, fileId, file.name, libraryFolderId)
+                    : null;
 
             if (isInPendingFolder && !isAlreadyInLibrary) {
                 await drive.files.update({
